@@ -17,6 +17,7 @@ const FRONTEND_DIST = path.resolve(__dirname, "../../frontend/dist");
 
 import { categoriesRouter } from "./routes/categories.routes";
 import { unitsRouter } from "./routes/units.routes";
+import { productTypesRouter } from "./routes/productTypes.routes";
 import { suppliersRouter } from "./routes/suppliers.routes";
 import { productsRouter } from "./routes/products.routes";
 import { menuItemsRouter } from "./routes/menuItems.routes";
@@ -45,6 +46,7 @@ export function createApp() {
 
   app.use("/api/categories", categoriesRouter);
   app.use("/api/units", unitsRouter);
+  app.use("/api/product-types", productTypesRouter);
   app.use("/api/suppliers", suppliersRouter);
   app.use("/api/products", productsRouter);
   app.use("/api/menu-items", menuItemsRouter);

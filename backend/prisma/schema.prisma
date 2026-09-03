@@ -34,6 +34,16 @@ model Category {
   updatedAt   DateTime  @updatedAt
 }
 
+model ProductType {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
 // SQLite has no native enum type, so enum-like fields below are plain
 // Strings validated at the application layer (see src/lib/constants.ts for
 // the canonical value lists and Zod schemas).
@@ -50,8 +60,12 @@ model Unit {
   dimension           String // WEIGHT | VOLUME | COUNT
   toBaseFactor        Float // ignored for "case"; product.caseSize used instead
   isBaseUnit          Boolean           @default(false)
+  isActive            Boolean           @default(true)
+  isCustom            Boolean           @default(false) // true if created by user, false if system default
+  createdAt           DateTime          @default(now())
 
   productsInventory   Product[]         @relation("ProductInventoryUnit")
+  productsPurchase    Product[]         @relation("ProductPurchaseUnit")
   productsCost        Product[]         @relation("ProductCostUnit")
   recipeIngredients   RecipeIngredient[]
   modifierIngredients ModifierIngredient[]
@@ -105,9 +119,23 @@ model Product {
   categoryId       String
   category         Category @relation(fields: [categoryId], references: [id])
 
+  // Product type (describes what the product fundamentally is: "Chicken Breast", "Tomato", etc.)
+  productTypeId    String?
+  productType      ProductType? @relation(fields: [productTypeId], references: [id])
+
   // Unit that on-hand quantity, par level, and reorder level are denominated in.
   inventoryUnitCode String
   inventoryUnit     Unit    @relation("ProductInventoryUnit", fields: [inventoryUnitCode], references: [code])
+
+  // Unit that the product is typically purchased in (may differ from inventory unit).
+  // If null, defaults to inventoryUnitCode (simple products).
+  purchaseUnitCode  String?
+  purchaseUnit      Unit?   @relation("ProductPurchaseUnit", fields: [purchaseUnitCode], references: [code])
+
+  // Conversion factor: 1 purchaseUnit = purchaseToInventoryFactor inventoryUnits
+  // Example: 1 case = 40 lb. Only needed if purchaseUnitCode != inventoryUnitCode.
+  // If null, assumed to be 1:1.
+  purchaseToInventoryFactor Float?
 
   // Unit that lastCost/avgCost are per-unit-of. Normally equal to inventoryUnitCode.
   costUnitCode      String
@@ -142,6 +170,7 @@ model Product {
   supplierAliases     SupplierProductAlias[]
 
   @@index([categoryId])
+  @@index([productTypeId])
 }
 
 // ---------------------------------------------------------------------------

@@ -118,6 +118,21 @@ export default function Settings() {
         </div>
       </Section>
 
+      <Section title="Reference Data">
+        <div className="sm:col-span-2">
+          <Link to="/settings/product-types" className="btn-secondary inline-flex mb-3">
+            📋 Manage Product Types
+          </Link>
+          <p className="mb-3 text-xs text-slate-400">Define product types for your inventory (e.g., "Chicken Breast", "Tomato").</p>
+        </div>
+        <div className="sm:col-span-2">
+          <Link to="/settings/units" className="btn-secondary inline-flex">
+            📏 Manage Units of Measurement
+          </Link>
+          <p className="mt-2 text-xs text-slate-400">Create custom units and view all available units (oz, lb, L, each, tray, etc.).</p>
+        </div>
+      </Section>
+
       <Section title="Integrations">
         <div className="sm:col-span-2">
           <Link to="/toast" className="btn-secondary inline-flex">

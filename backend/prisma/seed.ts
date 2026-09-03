@@ -53,6 +53,42 @@ async function main() {
     categories[categoryNames[i]] = c.id;
   }
 
+  console.log("Seeding product types...");
+  const productTypeNames = [
+    "Chicken Breast",
+    "Ground Beef",
+    "Bacon",
+    "Sirloin Steak",
+    "Salmon Fillet",
+    "Shrimp",
+    "Lettuce",
+    "Tomato",
+    "Onion",
+    "Milk",
+    "Cheddar Cheese",
+    "Swiss Cheese",
+    "Burger Buns",
+    "Sandwich Bread",
+    "House Sauce",
+    "Ketchup",
+    "Salt",
+    "Black Pepper",
+    "Frozen Fries",
+    "Ice Cream",
+    "Iced Tea Mix",
+    "Soda Syrup",
+    "Dish Soap",
+    "Sanitizer",
+    "To-Go Boxes",
+    "Napkins",
+    "Take-out Bags",
+  ];
+  const productTypes: Record<string, string> = {};
+  for (const ptName of productTypeNames) {
+    const pt = await prisma.productType.create({ data: { name: ptName } });
+    productTypes[ptName] = pt.id;
+  }
+
   console.log("Seeding suppliers...");
   const [sysco, usFoods, coop, oceanFresh] = await Promise.all([
     prisma.supplier.create({ data: { name: "Sysco Foods", contactName: "Dana Ruiz", phone: "555-0101", email: "orders@sysco.example" } }),
@@ -118,6 +154,7 @@ async function main() {
       data: {
         name: p.name,
         categoryId: categories[p.category],
+        productTypeId: productTypes[p.name],
         inventoryUnitCode: p.unit,
         costUnitCode: p.unit,
         parLevel: p.par,

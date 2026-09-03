@@ -25,7 +25,7 @@ productsRouter.get(
         ...(categoryId ? { categoryId } : {}),
         ...(search ? { name: { contains: search } } : {}),
       },
-      include: { category: true, inventoryUnit: true, supplier: true },
+      include: { category: true, productType: true, inventoryUnit: true, purchaseUnit: true, costUnit: true, supplier: true },
       orderBy: { name: "asc" },
     });
 
@@ -46,7 +46,7 @@ productsRouter.get(
   asyncHandler(async (req, res) => {
     const product = await prisma.product.findUnique({
       where: { id: req.params.id },
-      include: { category: true, inventoryUnit: true, costUnit: true, supplier: true },
+      include: { category: true, productType: true, inventoryUnit: true, purchaseUnit: true, costUnit: true, supplier: true },
     });
     if (!product) throw new NotFoundError("Product not found");
     res.json({ ...product, status: stockStatus(product), effectiveUnitCost: effectiveUnitCost(product) });
@@ -78,7 +78,10 @@ const createSchema = z.object({
   name: z.string().min(1),
   sku: z.string().optional(),
   categoryId: z.string().min(1),
+  productTypeId: z.string().optional(),
   inventoryUnitCode: z.string().min(1),
+  purchaseUnitCode: z.string().optional(),
+  purchaseToInventoryFactor: z.number().positive().optional(),
   costUnitCode: z.string().optional(),
   caseSize: z.number().positive().optional(),
   parLevel: z.number().min(0).default(0),
@@ -125,6 +128,9 @@ const updateSchema = z.object({
   name: z.string().min(1).optional(),
   sku: z.string().optional(),
   categoryId: z.string().optional(),
+  productTypeId: z.string().nullable().optional(),
+  purchaseUnitCode: z.string().nullable().optional(),
+  purchaseToInventoryFactor: z.number().positive().nullable().optional(),
   caseSize: z.number().positive().nullable().optional(),
   parLevel: z.number().min(0).optional(),
   reorderLevel: z.number().min(0).optional(),

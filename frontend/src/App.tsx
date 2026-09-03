@@ -18,6 +18,8 @@ import Reports from "./pages/Reports";
 import ToastIntegration from "./pages/ToastIntegration";
 import ToastMapping from "./pages/ToastMapping";
 import Settings from "./pages/Settings";
+import SettingsUnits from "./pages/SettingsUnits";
+import SettingsProductTypes from "./pages/SettingsProductTypes";
 import Users from "./pages/Users";
 
 export default function App() {
@@ -47,6 +49,8 @@ export default function App() {
         <Route path="/toast" element={<ToastIntegration />} />
         <Route path="/toast/mapping" element={<ToastMapping />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/units" element={<SettingsUnits />} />
+        <Route path="/settings/product-types" element={<SettingsProductTypes />} />
         <Route path="/users" element={<Users />} />
       </Route>
     </Routes>
