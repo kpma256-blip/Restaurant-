@@ -14,9 +14,12 @@ services:
     name: restaurant-inventory
     runtime: node
     plan: free
+    # --include=dev is required here: NODE_ENV=production (set below) makes
+    # `npm install` skip devDependencies by default, but the build itself
+    # needs vite/typescript (devDependencies) to compile the app.
     buildCommand: >
-      cd frontend && npm install && npm run build &&
-      cd ../backend && npm install && npx prisma generate && npm run build
+      cd frontend && npm install --include=dev && npm run build &&
+      cd ../backend && npm install --include=dev && npx prisma generate && npm run build
     startCommand: cd backend && npx prisma migrate deploy && npm run start
     healthCheckPath: /api/health
     envVars:
