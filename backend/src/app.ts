@@ -3,8 +3,17 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import morgan from "morgan";
+import path from "path";
+import fs from "fs";
 import { currentUser } from "./middleware/currentUser";
 import { errorHandler } from "./middleware/errorHandler";
+
+// In production this server also serves the built frontend (frontend/dist),
+// so the whole app is one deployable service on one URL — no separate
+// static host, no CORS to configure between them. Locally, run the Vite
+// dev server separately instead (its proxy forwards /api here); this path
+// simply won't exist until you `npm run build` the frontend.
+const FRONTEND_DIST = path.resolve(__dirname, "../../frontend/dist");
 
 import { categoriesRouter } from "./routes/categories.routes";
 import { unitsRouter } from "./routes/units.routes";
@@ -46,8 +55,15 @@ export function createApp() {
   app.use("/api/toast", toastRouter);
   app.use("/api/toast/webhook", toastWebhookRouter);
 
-  app.use((req, res) => res.status(404).json({ error: `No route for ${req.method} ${req.path}` }));
+  app.use("/api", (req, res) => res.status(404).json({ error: `No route for ${req.method} ${req.path}` }));
   app.use(errorHandler);
+
+  if (fs.existsSync(FRONTEND_DIST)) {
+    app.use(express.static(FRONTEND_DIST));
+    // Client-side routing (React Router): any non-API, non-file GET falls
+    // through to index.html so a hard refresh on e.g. /products still works.
+    app.get("*", (_req, res) => res.sendFile(path.join(FRONTEND_DIST, "index.html")));
+  }
 
   return app;
 }

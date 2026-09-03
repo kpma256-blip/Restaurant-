@@ -1,10 +1,11 @@
-# Optional: a Postgres service for production use instead of the default
-# SQLite dev database. To switch:
+# Local Postgres for development, matching what the app uses in production
+# (see README.md "Deploying it for real use"). Usage:
 #   1. docker compose up -d
 #   2. In backend/.env set DATABASE_URL="postgresql://inventory:inventory@localhost:5432/inventory"
-#   3. In backend/prisma/schema.prisma change datasource `provider` to "postgresql"
-#   4. cd backend && npx prisma migrate dev
-# No application code changes are needed — every query goes through Prisma Client.
+#      (already the default in backend/.env.example)
+#   3. cd backend && npx prisma migrate dev
+# Don't have Docker? Any local or hosted Postgres works — just point
+# DATABASE_URL at it instead.
 services:
   postgres:
     image: postgres:16-alpine

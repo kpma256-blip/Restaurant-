@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { convert, convertForProduct, UnitConversionError } from "../lib/units";
 
-// These tests read the Unit table, so they run against the seeded dev
-// database (backend/prisma/dev.db) — run `npm run seed` first if empty.
+// These tests read the Unit table, so they run against whatever database
+// DATABASE_URL points at (see backend/.env) — run `npm run seed` first if empty.
 
 describe("unit conversion", () => {
   it("converts pounds to ounces (1 lb = 16 oz)", async () => {

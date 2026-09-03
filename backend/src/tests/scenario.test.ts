@@ -5,9 +5,10 @@ import { recordSale, DuplicateSaleError } from "../services/sales.service";
 import { calculateProductVariance } from "../services/variance.service";
 
 // Integration test for the flagship "theoretical vs actual inventory"
-// calculation, run against the actual services and the seeded dev database
-// (backend/prisma/dev.db) — creates its own throwaway product/menu item so
-// it never collides with (or disturbs) the demo data from prisma/seed.ts.
+// calculation, run against the actual services and whatever database
+// DATABASE_URL points at (see backend/.env) — creates its own throwaway
+// product/menu item so it never collides with (or disturbs) the demo data
+// from prisma/seed.ts.
 //
 // Reproduces exactly the scenario from the project spec:
 //   Beginning = 50 lb, +30 lb purchase, sell 40 sandwiches @ 6 oz each,

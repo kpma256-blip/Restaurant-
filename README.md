@@ -10,7 +10,7 @@ integration architecture — built end-to-end, not a mockup.
 | Layer | Choice | Why |
 |---|---|---|
 | Backend | Node.js + TypeScript + Express | Simple, well-understood, fast to build a REST API on; TypeScript catches unit/schema mistakes that matter a lot when money and inventory math is involved. |
-| Database/ORM | Prisma + SQLite (dev), Postgres-ready | Prisma gives real relational modeling, migrations, and type-safe queries. **SQLite** is the default so the whole app runs with zero external services — but every query goes through Prisma Client, so switching to **Postgres** for production is a one-line `provider` change plus a `DATABASE_URL` (see `docker-compose.yml`). This is a real relational database either way: foreign keys, unique constraints, and transactions are enforced by the database, not just the app. |
+| Database/ORM | Prisma + PostgreSQL | Prisma gives real relational modeling, migrations, and type-safe queries; Postgres is a proper production-grade relational database (foreign keys, unique constraints, and transactions enforced by the database itself) — the same database locally (`docker-compose.yml`) and in production, so there's no dev/prod schema drift to debug. |
 | Frontend | React + TypeScript + Vite + Tailwind CSS | Fast dev loop, small bundle, and Tailwind makes it straightforward to build a clean, tablet/phone-friendly UI without a heavy component library. |
 | Data fetching | TanStack Query | Caching, invalidation, and mutation states (loading/error) without hand-rolled state management. |
 | Toast integration | A dedicated `backend/src/integrations/toast/` module | Isolates all POS-specific logic behind a normalized internal sales model, so the rest of the app — and a future second POS — never touches Toast's API shape directly. |
@@ -38,18 +38,22 @@ frontend/
 docker-compose.yml                 optional Postgres service for production
 ```
 
-## Running it
+## Running it locally
 
 ```bash
-# Backend
+# 1. Postgres — either Docker...
+docker compose up -d
+# ...or point DATABASE_URL at a Postgres instance you already have.
+
+# 2. Backend
 cd backend
 cp .env.example .env            # generate a real CREDENTIAL_ENCRYPTION_KEY, see the comment in .env.example
 npm install
-npx prisma migrate dev          # creates backend/prisma/dev.db
+npx prisma migrate dev          # creates the schema in Postgres
 npm run seed                    # realistic categories/products/recipes/sales/waste/counts
 npm run dev                     # http://localhost:4000
 
-# Frontend (separate terminal)
+# 3. Frontend (separate terminal)
 cd frontend
 npm install
 npm run dev                     # http://localhost:5173 (proxies /api to :4000)
@@ -66,6 +70,49 @@ cd backend
 npm run seed   # tests read the seeded Unit table
 npm test       # vitest: unit-conversion math + the full spec scenario, run live
 ```
+
+## Deploying it for real use (a public URL)
+
+In production, the backend also serves the built frontend directly (see
+`app.ts`) — one Node process, one URL, no separate static host and no
+CORS to configure. `render.yaml` at the repo root is a
+[Render](https://render.com) Blueprint that provisions exactly that: one
+web service + one managed Postgres database, wired together automatically.
+
+**Steps:**
+1. Push this repo to GitHub if it isn't already (merge this branch to
+   whichever branch you want to deploy from — Blueprints deploy the branch
+   you select when you connect the repo).
+2. In the Render dashboard: **New → Blueprint**, connect this repo. Render
+   reads `render.yaml` and shows you the web service + database it's about
+   to create.
+3. Click **Apply**. First build takes a few minutes (installs both
+   `frontend` and `backend`, builds both, then `prisma migrate deploy`
+   creates the schema on the new database automatically).
+4. Once it's live, run the seed script once against the production
+   database if you want the sample data as a starting point — or skip it
+   and start from empty by using the app's own screens (Receive,
+   Recipes, etc.) to enter your real products, recipes, and stock. To run
+   the seed remotely: copy the `DATABASE_URL` Render generated (Database →
+   Connect) into a local `backend/.env`, then `cd backend && npm run seed`.
+5. Your app is now live at `https://<your-service-name>.onrender.com`.
+
+**Before you rely on this for real restaurant data**, upgrade both the
+database and the web service off Render's free plan:
+- The **free Postgres database expires 30 days after creation** (a 14-day
+  grace period, then it's deleted) — fine for testing, not for your actual
+  inventory. Upgrade it to a paid plan in the Render dashboard before that
+  30 days is up.
+- The **free web service spins down after 15 minutes idle** and takes
+  30-60 seconds to wake back up on the next request — annoying at a busy
+  register. A paid "Starter" instance stays warm.
+
+Prefer a different host (Railway, Fly.io, a VPS)? The same two artifacts —
+a Dockerized/`npm run build`-able Node service reading `DATABASE_URL`, and
+a Postgres database — work anywhere; `render.yaml` is just the fastest
+path since it's declarative and one-click. Whatever you choose, keep
+`CREDENTIAL_ENCRYPTION_KEY` and `DATABASE_URL` as server-side secrets, and
+set `CORS_ORIGIN` to your real domain once you have one instead of `*`.
 
 ## Architecture: the ledger is the source of truth
 

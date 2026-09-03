@@ -6,19 +6,17 @@
 // rebuilt by summing InventoryTransaction rows for a product. Never write
 // to those cached fields directly from route/service code.
 //
-// Default datasource is SQLite for zero-config local development and CI.
-// To run on PostgreSQL for production: change `provider` below to
-// "postgresql", point DATABASE_URL at a Postgres instance, and re-run
-// `prisma migrate dev` — no application code changes are required because
-// all queries go through Prisma Client. See docker-compose.yml for a
-// ready-made Postgres service.
+// Datasource is PostgreSQL — a real production-grade relational database.
+// (An earlier revision defaulted to SQLite for zero-config local dev; this
+// is now Postgres end-to-end, local and production, via docker-compose.yml
+// or a locally installed Postgres — see backend/.env.example.)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

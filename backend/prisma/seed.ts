@@ -9,7 +9,7 @@ const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
 async function main() {
   const existing = await prisma.category.count();
   if (existing > 0) {
-    console.log("Database already has data — skipping seed. Delete backend/prisma/dev.db to reseed from scratch.");
+    console.log("Database already has data — skipping seed. Drop and recreate the database to reseed from scratch.");
     return;
   }
 

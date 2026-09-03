@@ -1,7 +1,8 @@
-// Canonical value lists for the string fields SQLite can't store as real
-// enums (see prisma/schema.prisma). Postgres deployments could restore real
-// enums, but keeping these as validated strings keeps both connectors
-// identical, so this list is the single source of truth either way.
+// Canonical value lists for the enum-like fields in prisma/schema.prisma,
+// which are plain, app-validated Strings rather than native Postgres enums
+// (adding a new value — e.g. a waste reason — is then just an edit here,
+// no migration required). This file is the single source of truth for
+// every valid value.
 
 export const UNIT_DIMENSIONS = ["WEIGHT", "VOLUME", "COUNT"] as const;
 export type UnitDimension = (typeof UNIT_DIMENSIONS)[number];
