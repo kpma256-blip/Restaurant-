@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
+import { ProductType } from "../types";
 import { Modal, PageHeader, Spinner, Table } from "../components/ui";
-
-interface ProductType {
-  id: string;
-  name: string;
-  isActive: boolean;
-  _count?: { products: number };
-}
 
 export default function SettingsProductTypes() {
   const qc = useQueryClient();
@@ -49,35 +43,8 @@ export default function SettingsProductTypes() {
 
   if (isLoading) return <Spinner />;
 
-  const rows = (productTypes || []).map((pt) => [
-    pt.name,
-    <span key="count" className="text-sm text-gray-600">
-      {pt._count?.products || 0} product{(pt._count?.products || 0) !== 1 ? "s" : ""}
-    </span>,
-    <span key="status" className="text-sm">
-      {pt.isActive ? "✓ Active" : "○ Inactive"}
-    </span>,
-    <div key="actions" className="flex gap-2">
-      <button
-        className="text-sm text-blue-600 hover:underline"
-        onClick={() => {
-          setEditId(pt.id);
-          setForm({ name: pt.name, description: "" });
-        }}
-      >
-        Edit
-      </button>
-      <button
-        className="text-sm text-gray-600 hover:underline"
-        onClick={() => toggleActive.mutate(pt.id)}
-      >
-        {pt.isActive ? "Deactivate" : "Activate"}
-      </button>
-    </div>,
-  ]);
-
   return (
-    <div>
+    <div className="max-w-4xl">
       <PageHeader
         title="Product Types"
         subtitle="Define product types for your inventory"
@@ -88,19 +55,52 @@ export default function SettingsProductTypes() {
         }
       />
 
-      <Table
-        columns={["Name", "Products", "Status", "Actions"]}
-        rows={rows}
-      />
+      <Table>
+        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th className="px-3 py-2 text-left">Name</th>
+            <th className="px-3 py-2 text-left">Products</th>
+            <th className="px-3 py-2 text-left">Status</th>
+            <th className="px-3 py-2 text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {(productTypes || []).map((pt) => (
+            <tr key={pt.id} className="hover:bg-slate-50">
+              <td className="px-3 py-2">{pt.name}</td>
+              <td className="px-3 py-2 text-sm text-gray-600">
+                {pt._count?.products || 0} product{(pt._count?.products || 0) !== 1 ? "s" : ""}
+              </td>
+              <td className="px-3 py-2 text-sm">{pt.isActive ? "✓ Active" : "○ Inactive"}</td>
+              <td className="px-3 py-2">
+                <div className="flex gap-2">
+                  <button
+                    className="text-sm text-blue-600 hover:underline"
+                    onClick={() => {
+                      setEditId(pt.id);
+                      setForm({ name: pt.name, description: "" });
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="text-sm text-gray-600 hover:underline"
+                    onClick={() => toggleActive.mutate(pt.id)}
+                  >
+                    {pt.isActive ? "Deactivate" : "Activate"}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
 
       {(showNew || editId) && (
-        <Modal onClose={() => { setShowNew(false); setEditId(null); }}>
+        <Modal open={showNew || !!editId} onClose={() => { setShowNew(false); setEditId(null); }} title={editId ? "Edit Product Type" : "Create Product Type"}>
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">
-              {editId ? "Edit Product Type" : "Create Product Type"}
-            </h3>
             <div>
-              <label className="block text-sm font-medium">Name</label>
+              <label className="block text-sm font-medium mb-1">Name</label>
               <input
                 className="input w-full"
                 value={form.name}
@@ -109,7 +109,7 @@ export default function SettingsProductTypes() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Description (optional)</label>
+              <label className="block text-sm font-medium mb-1">Description (optional)</label>
               <textarea
                 className="input w-full"
                 rows={3}

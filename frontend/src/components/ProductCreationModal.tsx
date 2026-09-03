@@ -1,15 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import { Category, Unit } from "../types";
+import { Category, Unit, ProductType } from "../types";
 import { Modal } from "./ui";
 
 interface ProductCreationModalProps {
+  open: boolean;
   onClose: () => void;
   onSuccess?: (productId: string) => void;
 }
 
-export default function ProductCreationModal({ onClose, onSuccess }: ProductCreationModalProps) {
+export default function ProductCreationModal({ open, onClose, onSuccess }: ProductCreationModalProps) {
   const qc = useQueryClient();
   const [step, setStep] = useState<"basic" | "units" | "advanced">("basic");
   const [form, setForm] = useState({
@@ -33,7 +34,7 @@ export default function ProductCreationModal({ onClose, onSuccess }: ProductCrea
     queryFn: () => api.get("/categories"),
   });
 
-  const { data: productTypes } = useQuery<any[]>({
+  const { data: productTypes } = useQuery<ProductType[]>({
     queryKey: ["product-types"],
     queryFn: () => api.get("/product-types"),
   });
@@ -49,7 +50,7 @@ export default function ProductCreationModal({ onClose, onSuccess }: ProductCrea
   });
 
   const createType = useMutation({
-    mutationFn: () => api.post("/product-types", { name: form.productTypeName }),
+    mutationFn: () => api.post<ProductType>("/product-types", { name: form.productTypeName }),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ["product-types"] });
       setForm({ ...form, productTypeId: created.id, productTypeName: "" });
@@ -71,7 +72,7 @@ export default function ProductCreationModal({ onClose, onSuccess }: ProductCrea
         ...(form.purchaseUnitCode && { purchaseUnitCode: form.purchaseUnitCode }),
         ...(form.purchaseToInventoryFactor && { purchaseToInventoryFactor: parseFloat(form.purchaseToInventoryFactor) }),
       };
-      return api.post("/products", payload);
+      return api.post<any>("/products", payload);
     },
     onSuccess: (product) => {
       qc.invalidateQueries({ queryKey: ["products"] });
@@ -82,11 +83,11 @@ export default function ProductCreationModal({ onClose, onSuccess }: ProductCrea
 
   const canContinue = form.name && form.categoryId && form.inventoryUnitCode;
 
-  return (
-    <Modal onClose={onClose}>
-      <div className="space-y-4 max-w-md">
-        <h2 className="text-2xl font-bold">Create Product</h2>
+  if (!open) return null;
 
+  return (
+    <Modal open={open} onClose={onClose} title="Create Product">
+      <div className="space-y-4">
         {step === "basic" && (
           <div className="space-y-3">
             <div>

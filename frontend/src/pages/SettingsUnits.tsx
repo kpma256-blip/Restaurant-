@@ -37,7 +37,7 @@ export default function SettingsUnits() {
   if (isLoading) return <Spinner />;
 
   return (
-    <div>
+    <div className="max-w-4xl">
       <PageHeader
         title="Units of Measurement"
         subtitle="Manage inventory units and create custom units"
@@ -51,56 +51,77 @@ export default function SettingsUnits() {
       <div className="space-y-6">
         <div>
           <h3 className="mb-3 font-semibold">System Units</h3>
-          <Table
-            columns={["Code", "Name", "Dimension", "Factor", "Status"]}
-            rows={(systemUnits || []).map((u) => [
-              <code key="code">{u.code}</code>,
-              u.name,
-              <span key="dim" className="text-sm text-gray-600">
-                {u.dimension}
-              </span>,
-              <span key="factor" className="text-sm">
-                {u.toBaseFactor}
-              </span>,
-              <span key="status" className="text-sm">
-                {u.isActive ? "✓ Active" : "○ Inactive"}
-              </span>,
-            ])}
-          />
+          <Table>
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="px-3 py-2 text-left">Code</th>
+                <th className="px-3 py-2 text-left">Name</th>
+                <th className="px-3 py-2 text-left">Dimension</th>
+                <th className="px-3 py-2 text-left">Factor</th>
+                <th className="px-3 py-2 text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {systemUnits.map((u) => (
+                <tr key={u.code} className="hover:bg-slate-50">
+                  <td className="px-3 py-2">
+                    <code className="text-sm">{u.code}</code>
+                  </td>
+                  <td className="px-3 py-2">{u.name}</td>
+                  <td className="px-3 py-2 text-sm text-gray-600">{u.dimension}</td>
+                  <td className="px-3 py-2 text-sm">{u.toBaseFactor}</td>
+                  <td className="px-3 py-2 text-sm">{u.isActive !== false ? "✓ Active" : "○ Inactive"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
         </div>
 
         {customUnits.length > 0 && (
           <div>
             <h3 className="mb-3 font-semibold">Custom Units</h3>
-            <Table
-              columns={["Code", "Name", "Dimension", "Factor", "Status", "Action"]}
-              rows={(customUnits || []).map((u) => [
-                <code key="code">{u.code}</code>,
-                u.name,
-                u.dimension,
-                u.toBaseFactor,
-                <span key="status" className="text-sm">
-                  {u.isActive ? "✓ Active" : "○ Inactive"}
-                </span>,
-                <button
-                  key="toggle"
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => toggle.mutate(u.code)}
-                >
-                  {u.isActive ? "Deactivate" : "Activate"}
-                </button>,
-              ])}
-            />
+            <Table>
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Code</th>
+                  <th className="px-3 py-2 text-left">Name</th>
+                  <th className="px-3 py-2 text-left">Dimension</th>
+                  <th className="px-3 py-2 text-left">Factor</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {customUnits.map((u) => (
+                  <tr key={u.code} className="hover:bg-slate-50">
+                    <td className="px-3 py-2">
+                      <code className="text-sm">{u.code}</code>
+                    </td>
+                    <td className="px-3 py-2">{u.name}</td>
+                    <td className="px-3 py-2">{u.dimension}</td>
+                    <td className="px-3 py-2">{u.toBaseFactor}</td>
+                    <td className="px-3 py-2 text-sm">{u.isActive !== false ? "✓ Active" : "○ Inactive"}</td>
+                    <td className="px-3 py-2">
+                      <button
+                        className="text-sm text-blue-600 hover:underline"
+                        onClick={() => toggle.mutate(u.code)}
+                      >
+                        {u.isActive !== false ? "Deactivate" : "Activate"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
           </div>
         )}
       </div>
 
       {showNew && (
-        <Modal onClose={() => setShowNew(false)}>
+        <Modal open={showNew} onClose={() => setShowNew(false)} title="Create Custom Unit">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Create Custom Unit</h3>
             <div>
-              <label className="block text-sm font-medium">Code (e.g., "tray")</label>
+              <label className="block text-sm font-medium mb-1">Code (e.g., "tray")</label>
               <input
                 className="input w-full"
                 value={form.code}
@@ -109,7 +130,7 @@ export default function SettingsUnits() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Name</label>
+              <label className="block text-sm font-medium mb-1">Name</label>
               <input
                 className="input w-full"
                 value={form.name}
@@ -118,7 +139,7 @@ export default function SettingsUnits() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium">Dimension</label>
+              <label className="block text-sm font-medium mb-1">Dimension</label>
               <select
                 className="input w-full"
                 value={form.dimension}
@@ -130,7 +151,7 @@ export default function SettingsUnits() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium">Conversion to Base Unit</label>
+              <label className="block text-sm font-medium mb-1">Conversion to Base Unit</label>
               <input
                 className="input w-full"
                 type="number"

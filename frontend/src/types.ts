@@ -13,6 +13,17 @@ export interface Unit {
   dimension: "WEIGHT" | "VOLUME" | "COUNT";
   toBaseFactor: number;
   isBaseUnit: boolean;
+  isActive?: boolean;
+  isCustom?: boolean;
+  createdAt?: string;
+}
+
+export interface ProductType {
+  id: string;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  _count?: { products: number };
 }
 
 export interface Supplier {
@@ -30,8 +41,15 @@ export interface Product {
   sku?: string | null;
   categoryId: string;
   category?: Category;
+  productTypeId?: string | null;
+  productType?: ProductType | null;
   inventoryUnitCode: string;
+  inventoryUnit?: Unit;
+  purchaseUnitCode?: string | null;
+  purchaseUnit?: Unit | null;
+  purchaseToInventoryFactor?: number | null;
   costUnitCode: string;
+  costUnit?: Unit;
   caseSize?: number | null;
   parLevel: number;
   reorderLevel: number;
