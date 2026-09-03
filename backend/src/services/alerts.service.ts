@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { calculateAllVariances } from "./variance.service";
 import { calculateAllMenuItemCosts } from "./costing.service";
 import { HIGH_WASTE_THRESHOLD_PCT } from "../lib/constants";
+import { getSettings } from "../lib/settingsCache";
 
 export type AlertSeverity = "critical" | "warning" | "info";
 
@@ -21,12 +22,14 @@ export interface Alert {
   value?: number | null;
 }
 
-const TARGET_FOOD_COST_PCT = 35;
-
 export async function getAlerts(): Promise<Alert[]> {
   const alerts: Alert[] = [];
 
-  const products = await prisma.product.findMany({ where: { isActive: true } });
+  const [products, settings] = await Promise.all([
+    prisma.product.findMany({ where: { isActive: true } }),
+    getSettings(),
+  ]);
+  const targetFoodCostPct = settings.foodCostTargetPct;
   for (const p of products) {
     if (p.currentQuantity < 0) {
       alerts.push({
@@ -86,12 +89,12 @@ export async function getAlerts(): Promise<Alert[]> {
 
   const menuCosts = await calculateAllMenuItemCosts();
   for (const m of menuCosts) {
-    if (m.foodCostPct != null && m.foodCostPct > TARGET_FOOD_COST_PCT) {
+    if (m.foodCostPct != null && m.foodCostPct > targetFoodCostPct) {
       alerts.push({
         type: "HIGH_FOOD_COST",
         severity: "warning",
         productName: m.name,
-        message: `${m.name} food cost is ${m.foodCostPct.toFixed(1)}% of its ${`$${m.sellingPrice.toFixed(2)}`} selling price (target < ${TARGET_FOOD_COST_PCT}%)`,
+        message: `${m.name} food cost is ${m.foodCostPct.toFixed(1)}% of its ${`$${m.sellingPrice.toFixed(2)}`} selling price (target < ${targetFoodCostPct}%)`,
         value: m.foodCostPct,
       });
     }
@@ -114,6 +117,12 @@ export async function getAlerts(): Promise<Alert[]> {
     }
   }
 
+  const filtered = alerts.filter((a) => {
+    if (!settings.notifyLowStock && (a.type === "BELOW_PAR" || a.type === "BELOW_REORDER" || a.type === "ZERO")) return false;
+    if (!settings.notifyHighVariance && (a.type === "HIGH_VARIANCE" || a.type === "HIGH_WASTE")) return false;
+    return true;
+  });
+
   const severityRank: Record<AlertSeverity, number> = { critical: 0, warning: 1, info: 2 };
-  return alerts.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+  return filtered.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
 }

@@ -1,18 +1,20 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { ToastStatus } from "../types";
 import { Badge, Modal, PageHeader, StatCard, Table } from "../components/ui";
 import { dateTimeStr, money, toInputDate } from "../lib/format";
+import ToastSetupWizard from "../components/toast/ToastSetupWizard";
 
 export default function ToastIntegration() {
   const qc = useQueryClient();
   const { data: status } = useQuery<ToastStatus>({ queryKey: ["toast-status"], queryFn: () => api.get("/toast/status"), refetchInterval: 15_000 });
   const { data: logs } = useQuery<any[]>({ queryKey: ["toast-logs"], queryFn: () => api.get("/toast/sync-logs") });
 
-  const [showConnect, setShowConnect] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [showHistorical, setShowHistorical] = useState(false);
+  const syncLogRef = useRef<HTMLHeadingElement>(null);
 
   const syncNow = useMutation({
     mutationFn: () => api.post("/toast/sync"),
@@ -41,27 +43,51 @@ export default function ToastIntegration() {
         subtitle="Toast is the primary source of sales — orders sync automatically and deduct ingredients from theoretical inventory"
         action={
           status?.connected ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-secondary" onClick={() => syncLogRef.current?.scrollIntoView({ behavior: "smooth" })}>
+                View Sync History
+              </button>
               <button className="btn-secondary" onClick={() => setShowHistorical(true)}>
                 Import historical sales
               </button>
               <button className="btn-primary" onClick={() => syncNow.mutate()} disabled={syncNow.isPending}>
-                {syncNow.isPending ? "Syncing…" : "Sync Toast Now"}
+                {syncNow.isPending ? "Syncing…" : "Sync Now"}
               </button>
             </div>
           ) : (
-            <button className="btn-primary" onClick={() => setShowConnect(true)}>
+            <button className="btn-primary" onClick={() => setShowWizard(true)}>
               Connect Toast
             </button>
           )
         }
       />
 
+      {!status?.connected && (
+        <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+          <div className="mb-2 font-bold text-slate-800">What you'll need to connect</div>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              A Toast API <strong>Client ID and Client Secret</strong> — generated from the Toast admin/back-office (Standard API Access,
+              self-service per restaurant), or Partner credentials if you're connecting many restaurants.
+            </li>
+            <li>
+              Your restaurant's <strong>Restaurant GUID</strong>, from the same Toast admin portal.
+            </li>
+            <li>Whether you're using Toast's sandbox or production environment.</li>
+          </ul>
+          <p className="mt-2">
+            Credentials are validated with a live call to Toast before saving, encrypted at rest, and never sent back to this browser. Full
+            details — including current Toast API access-tier and rate-limit notes — are in{" "}
+            <code>backend/src/integrations/toast/README.md</code>.
+          </p>
+        </div>
+      )}
+
       <div className="mb-4 card flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
-          <span className={`h-3 w-3 rounded-full ${status?.connected ? "bg-emerald-500" : "bg-rose-500"}`} />
+          <span className="text-2xl">{status?.connected ? "🟢" : "🔴"}</span>
           <div>
-            <div className="font-bold">{status?.connected ? "CONNECTED" : "DISCONNECTED"}</div>
+            <div className="font-bold">{status?.connected ? "Connected" : "Not Connected"}</div>
             <div className="text-xs text-slate-500">
               {status?.environment.toUpperCase()} {status?.restaurantGuid ? `· Restaurant ${status.restaurantGuid}` : ""}
             </div>
@@ -84,12 +110,12 @@ export default function ToastIntegration() {
         <div className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{(syncNow.error as any)?.message}</div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Last successful sync" value={status?.lastSyncAt ? dateTimeStr(status.lastSyncAt) : "Never"} />
-        <StatCard label="Orders synchronized" value={status?.totalOrdersSynced ?? 0} />
-        <StatCard label="Failed imports" value={status?.totalOrdersFailed ?? 0} tone={status && status.totalOrdersFailed > 0 ? "bad" : "default"} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+        <StatCard label="Last synchronization" value={status?.lastSyncAt ? dateTimeStr(status.lastSyncAt) : "Never"} />
+        <StatCard label="Orders imported" value={status?.totalOrdersSynced ?? 0} />
+        <StatCard label="Items imported" value={status?.totalInventoryTransactions ?? 0} hint="inventory transactions generated" />
         <StatCard
-          label="Unmapped Toast items"
+          label="Unmapped menu items"
           value={
             <Link to="/toast/mapping" className="hover:underline">
               {status?.unmappedItemCount ?? 0}
@@ -97,6 +123,7 @@ export default function ToastIntegration() {
           }
           tone={status && status.unmappedItemCount > 0 ? "warn" : "default"}
         />
+        <StatCard label="Failed syncs" value={status?.totalOrdersFailed ?? 0} tone={status && status.totalOrdersFailed > 0 ? "bad" : "default"} />
       </div>
 
       {status && status.unmappedItemCount > 0 && (
@@ -110,7 +137,9 @@ export default function ToastIntegration() {
         </div>
       )}
 
-      <h2 className="mb-2 mt-6 text-lg font-bold">Sync log</h2>
+      <h2 ref={syncLogRef} className="mb-2 mt-6 scroll-mt-4 text-lg font-bold">
+        Sync log
+      </h2>
       <Table>
         <thead className="bg-slate-50 text-xs uppercase text-slate-500">
           <tr>
@@ -168,67 +197,9 @@ export default function ToastIntegration() {
         </div>
       )}
 
-      <ConnectModal open={showConnect} onClose={() => setShowConnect(false)} />
+      <ToastSetupWizard open={showWizard} onClose={() => setShowWizard(false)} />
       <HistoricalImportModal open={showHistorical} onClose={() => setShowHistorical(false)} />
     </div>
-  );
-}
-
-function ConnectModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const qc = useQueryClient();
-  const [environment, setEnvironment] = useState("sandbox");
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [restaurantGuid, setRestaurantGuid] = useState("");
-
-  const connect = useMutation({
-    mutationFn: () => api.post("/toast/connect", { environment, clientId, clientSecret, restaurantGuid }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["toast-status"] });
-      onClose();
-    },
-  });
-
-  return (
-    <Modal open={open} onClose={onClose} title="Connect Toast">
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          connect.mutate();
-        }}
-      >
-        <p className="text-sm text-slate-500">
-          Enter the API credentials Toast issued for your restaurant (Standard API Access, generated from the Toast admin portal, or
-          Partner credentials). See <code>backend/src/integrations/toast/README.md</code> for exactly what's required and how to get it —
-          these are validated with a live call to Toast before being saved, and are encrypted at rest server-side. They are never sent to
-          this browser again.
-        </p>
-        <div>
-          <label className="label">Environment</label>
-          <select className="input" value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-            <option value="sandbox">Sandbox</option>
-            <option value="production">Production</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Client ID</label>
-          <input className="input" required value={clientId} onChange={(e) => setClientId(e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Client secret</label>
-          <input className="input" type="password" required value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Restaurant GUID</label>
-          <input className="input" required value={restaurantGuid} onChange={(e) => setRestaurantGuid(e.target.value)} />
-        </div>
-        {connect.isError && <div className="text-sm text-rose-600">{(connect.error as any)?.message}</div>}
-        <button className="btn-primary" disabled={connect.isPending}>
-          {connect.isPending ? "Testing connection…" : "Connect"}
-        </button>
-      </form>
-    </Modal>
   );
 }
 

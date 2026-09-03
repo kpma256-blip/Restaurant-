@@ -254,6 +254,75 @@ credentials. Everything upstream of "does Toast's server respond" — auth,
 normalization, mapping, idempotency, ledger integration — is exercised by
 the automated tests and is real, working code, not a mock.
 
+## Receiving: quick entry and PDF invoice upload
+
+The Receive Inventory screen (`/receive`) has two tabs, both ultimately
+calling the same `services/inventory-receiving/inventoryReceiving.service.ts`
+— the one place that turns a receiving session into a `Purchase` +
+`PurchaseItem`s + ledger `PURCHASE` transactions, so there's exactly one
+code path capable of creating a receiving record no matter how it started.
+
+- **Quick Manual Entry** — a spreadsheet-style multi-row form
+  (`components/receiving/QuickEntryTab.tsx`) with a searchable product
+  picker (`components/SearchableSelect.tsx`) and an inline "create new
+  product" shortcut, so a whole delivery is one save.
+- **Upload Invoice** (`components/receiving/UploadInvoiceTab.tsx`) — upload
+  a PDF, review the extracted line items, edit anything, then confirm.
+  **Nothing touches inventory until you click "Save & Add to Inventory."**
+
+PDF parsing is its own module, not tied to one supplier's layout:
+
+```
+src/services/ocr/               tesseract.js OCR, fully offline (see below)
+src/services/invoice-parser/    text extraction + OCR fallback + line-item heuristics
+src/services/productMatching.service.ts   alias memory + fuzzy product matching
+```
+
+`invoice-parser` first tries the PDF's embedded text (`pdf-parse`); if
+there's too little text to be a real invoice (a scanned document), it
+rasterizes each page and runs OCR instead. **OCR runs fully offline** — the
+English trained-data is bundled as a normal npm dependency
+(`@tesseract.js-data/eng`), not fetched from a CDN at request time, so it
+works the same in an environment with no outbound internet as it does in
+production. Line items are extracted with a generic regex/heuristic
+parser (`lineParser.ts`) — deliberately not an exact parser, since real
+invoices vary too much for that to ever be 100% right, which is exactly
+why the review screen is mandatory rather than best-effort.
+
+**Product matching + memory**: each invoice line is matched against your
+products by fuzzy text similarity (`productMatching.service.ts`, a blended
+Levenshtein/token-overlap score, no external API). Once you confirm (or
+correct) a match, it's saved as a `SupplierProductAlias` keyed to that
+supplier — the next invoice from them with that exact line text matches
+instantly, no fuzzy guessing needed. This is genuinely learned per
+restaurant, not a fixed lookup table.
+
+**Duplicate prevention**: every uploaded file's SHA-256 hash is stored on
+its `Purchase` (`invoiceFileHash`, unique). Uploading the same PDF twice is
+flagged as a likely duplicate before you even review it, and is hard-blocked
+at confirm time regardless — covered by an automated test
+(`src/tests/receiving.test.ts`).
+
+**Receiving history** (`/receiving`) lists every receiving with date,
+supplier, invoice #, item count, total cost, and source (manual vs. PDF);
+clicking one shows the full line-item breakdown and a link to view the
+original stored PDF. Uploaded files live on local disk under
+`backend/uploads/` by default (`UPLOADS_DIR` env var to relocate) — same
+persistence caveat as the dev database: on an ephemeral host this needs a
+persistent volume or object storage before relying on it in production.
+
+## Settings, Suppliers, and Users
+
+`/settings` is a real, wired-up settings screen, not cosmetic — the
+variance-flagging threshold and food-cost target you set there are read
+live by `variance.service.ts` and `alerts.service.ts` (cached briefly, see
+`lib/settingsCache.ts`), and the notification toggles filter what
+`alerts.service.ts` returns. `/suppliers` and `/users` are straightforward
+CRUD over the `Supplier` and `User` tables that already existed in the
+schema — `/users` manages the user *directory* (who shows up in "Acting
+as" and gets attributed on ledger entries); there's still no
+login/password, which stays a documented future item.
+
 ## Sample data
 
 `npm run seed` creates 13 categories, 9 units, 4 suppliers, 4 users, 27
@@ -270,12 +339,14 @@ the same thing against a disposable test product every time).
 The schema and the Toast module's separation of concerns exist specifically
 so these can be added without reworking what's here: additional POS
 integrations (swap in a new `integrations/<pos>/` module, same
-`NormalizedSale` contract), supplier management + purchase orders (the
-`Supplier`/`Purchase` tables already exist), barcode/invoice scanning
-(would populate the same `receive` endpoint), multiple locations (add a
-`locationId` to `Product`/`InventoryTransaction` and scope queries),
-real employee permissions (the `User.role` field and `X-User-Id` plumbing
-are already there — a proper auth layer replaces the header-based stub),
-and forecasting/auto-ordering (the ledger already has everything a
-forecast model needs: full historical consumption, purchases, and waste
-per product).
+`NormalizedSale` contract), purchase orders (supplier management and
+invoice/PDF receiving already exist — a PO would add an "expected, not yet
+received" state ahead of what `inventory-receiving` does today), barcode
+scanning (would feed the same `SearchableSelect` product picker on the
+Quick Entry tab), multiple locations (add a `locationId` to
+`Product`/`InventoryTransaction` and scope queries), real employee
+permissions with sign-in (the `User.role` field, the user directory at
+`/users`, and the `X-User-Id` plumbing are already there — a proper auth
+layer replaces the header-based stub), and forecasting/auto-ordering (the
+ledger already has everything a forecast model needs: full historical
+consumption, purchases, and waste per product).

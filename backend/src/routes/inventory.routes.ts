@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { asyncHandler, BadRequestError, NotFoundError } from "../middleware/errorHandler";
 import { applyInventoryTransaction, getLedgerBalance } from "../services/inventoryLedger.service";
+import { createReceiving } from "../services/inventory-receiving/inventoryReceiving.service";
 import { WASTE_REASONS } from "../lib/constants";
 
 export const inventoryRouter = Router();
@@ -28,57 +29,23 @@ const receiveSchema = z.object({
     .min(1),
 });
 
+// Kept for backward compatibility (existing callers/tests) — delegates to
+// the same inventory-receiving service that powers the newer /api/receiving
+// endpoints (see routes/receiving.routes.ts), so there's exactly one code
+// path that actually creates a Purchase + ledger transactions.
 inventoryRouter.post(
   "/receive",
   asyncHandler(async (req, res) => {
     const body = receiveSchema.parse(req.body);
-
-    const result = await prisma.$transaction(async (tx) => {
-      const totalCost = body.items.reduce((s, i) => s + (i.unitCost ?? 0) * i.quantity, 0);
-      const purchase = await tx.purchase.create({
-        data: {
-          purchaseDate: body.purchaseDate,
-          supplierId: body.supplierId,
-          invoiceNumber: body.invoiceNumber,
-          notes: body.notes,
-          totalCost,
-          createdByUserId: req.userId ?? null,
-        },
-      });
-
-      for (const item of body.items) {
-        await tx.purchaseItem.create({
-          data: {
-            purchaseId: purchase.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitCode: item.unitCode,
-            unitCost: item.unitCost ?? 0,
-            totalCost: (item.unitCost ?? 0) * item.quantity,
-          },
-        });
-
-        await applyInventoryTransaction(
-          {
-            productId: item.productId,
-            type: "PURCHASE",
-            quantity: item.quantity,
-            unitCode: item.unitCode,
-            unitCost: item.unitCost ?? null,
-            reason: "Purchase",
-            notes: body.notes,
-            referenceType: "PURCHASE",
-            referenceId: purchase.id,
-            userId: req.userId ?? null,
-            occurredAt: body.purchaseDate,
-          },
-          tx
-        );
-      }
-
-      return tx.purchase.findUniqueOrThrow({ where: { id: purchase.id }, include: { items: true } });
+    const result = await createReceiving({
+      purchaseDate: body.purchaseDate,
+      supplierId: body.supplierId ?? null,
+      invoiceNumber: body.invoiceNumber ?? null,
+      notes: body.notes ?? null,
+      sourceType: "MANUAL",
+      items: body.items,
+      userId: req.userId ?? null,
     });
-
     res.status(201).json(result);
   })
 );

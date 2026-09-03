@@ -163,6 +163,11 @@ CREATE TABLE "Purchase" (
     "invoiceNumber" TEXT,
     "notes" TEXT,
     "totalCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "sourceType" TEXT NOT NULL DEFAULT 'MANUAL',
+    "invoiceFileOriginalName" TEXT,
+    "invoiceFileStoragePath" TEXT,
+    "invoiceFileMimeType" TEXT,
+    "invoiceFileHash" TEXT,
     "createdByUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -178,6 +183,7 @@ CREATE TABLE "PurchaseItem" (
     "unitCode" TEXT NOT NULL,
     "unitCost" DOUBLE PRECISION NOT NULL,
     "totalCost" DOUBLE PRECISION NOT NULL,
+    "rawDescription" TEXT,
 
     CONSTRAINT "PurchaseItem_pkey" PRIMARY KEY ("id")
 );
@@ -307,6 +313,41 @@ CREATE TABLE "ToastSyncLog" (
     CONSTRAINT "ToastSyncLog_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "SupplierProductAlias" (
+    "id" TEXT NOT NULL,
+    "supplierId" TEXT,
+    "normalizedText" TEXT NOT NULL,
+    "rawText" TEXT NOT NULL,
+    "productId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "SupplierProductAlias_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Settings" (
+    "id" TEXT NOT NULL DEFAULT 'singleton',
+    "restaurantName" TEXT NOT NULL DEFAULT 'My Restaurant',
+    "address" TEXT,
+    "timezone" TEXT NOT NULL DEFAULT 'America/New_York',
+    "currency" TEXT NOT NULL DEFAULT 'USD',
+    "defaultInventoryUnitCode" TEXT NOT NULL DEFAULT 'lb',
+    "lowStockNotify" BOOLEAN NOT NULL DEFAULT true,
+    "varianceThresholdPct" DOUBLE PRECISION NOT NULL DEFAULT 10,
+    "countRequiresFullList" BOOLEAN NOT NULL DEFAULT false,
+    "costMethod" TEXT NOT NULL DEFAULT 'WEIGHTED_AVERAGE',
+    "foodCostTargetPct" DOUBLE PRECISION NOT NULL DEFAULT 30,
+    "notifyLowStock" BOOLEAN NOT NULL DEFAULT true,
+    "notifyHighVariance" BOOLEAN NOT NULL DEFAULT true,
+    "notifyFailedToastSync" BOOLEAN NOT NULL DEFAULT true,
+    "notifyUnmappedToast" BOOLEAN NOT NULL DEFAULT true,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Settings_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
 
@@ -335,6 +376,9 @@ CREATE UNIQUE INDEX "Sale_source_externalOrderId_key" ON "Sale"("source", "exter
 CREATE UNIQUE INDEX "SaleItem_saleId_externalItemId_key" ON "SaleItem"("saleId", "externalItemId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Purchase_invoiceFileHash_key" ON "Purchase"("invoiceFileHash");
+
+-- CreateIndex
 CREATE INDEX "InventoryCountItem_countId_idx" ON "InventoryCountItem"("countId");
 
 -- CreateIndex
@@ -354,6 +398,12 @@ CREATE UNIQUE INDEX "ToastModifierMapping_toastModifierGuid_key" ON "ToastModifi
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ToastModifierMapping_internalModifierId_key" ON "ToastModifierMapping"("internalModifierId");
+
+-- CreateIndex
+CREATE INDEX "SupplierProductAlias_productId_idx" ON "SupplierProductAlias"("productId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "SupplierProductAlias_supplierId_normalizedText_key" ON "SupplierProductAlias"("supplierId", "normalizedText");
 
 -- AddForeignKey
 ALTER TABLE "Product" ADD CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -450,3 +500,9 @@ ALTER TABLE "ToastMenuItemMapping" ADD CONSTRAINT "ToastMenuItemMapping_internal
 
 -- AddForeignKey
 ALTER TABLE "ToastModifierMapping" ADD CONSTRAINT "ToastModifierMapping_internalModifierId_fkey" FOREIGN KEY ("internalModifierId") REFERENCES "Modifier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SupplierProductAlias" ADD CONSTRAINT "SupplierProductAlias_supplierId_fkey" FOREIGN KEY ("supplierId") REFERENCES "Supplier"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SupplierProductAlias" ADD CONSTRAINT "SupplierProductAlias_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

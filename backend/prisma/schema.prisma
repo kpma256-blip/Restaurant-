@@ -70,6 +70,7 @@ model Supplier {
   notes       String?
   products    Product[]
   purchases   Purchase[]
+  aliases     SupplierProductAlias[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -138,6 +139,7 @@ model Product {
   purchaseItems       PurchaseItem[]
   wasteRecords        WasteRecord[]
   countItems          InventoryCountItem[]
+  supplierAliases     SupplierProductAlias[]
 
   @@index([categoryId])
 }
@@ -256,6 +258,7 @@ model SaleItem {
 // Purchasing / receiving
 // ---------------------------------------------------------------------------
 
+// sourceType: MANUAL | PDF_UPLOAD
 model Purchase {
   id              String   @id @default(cuid())
   supplierId      String?
@@ -264,6 +267,17 @@ model Purchase {
   invoiceNumber   String?
   notes           String?
   totalCost       Float    @default(0)
+  sourceType      String   @default("MANUAL")
+
+  // Populated when this receiving came from an uploaded invoice/receipt PDF.
+  invoiceFileOriginalName String?
+  invoiceFileStoragePath  String? // path under UPLOADS_DIR — see src/lib/fileStorage.ts
+  invoiceFileMimeType     String?
+  // SHA-256 of the uploaded file. Guards against the same invoice PDF being
+  // confirmed twice (accidental double-upload) creating duplicate inventory
+  // transactions — see services/inventory-receiving.
+  invoiceFileHash         String? @unique
+
   createdByUserId String?
   createdByUser   User?    @relation(fields: [createdByUserId], references: [id])
   createdAt       DateTime @default(now())
@@ -282,6 +296,10 @@ model PurchaseItem {
   unit       Unit     @relation(fields: [unitCode], references: [code])
   unitCost   Float
   totalCost  Float
+  // The line's original text as it appeared on the invoice, when this came
+  // from a PDF (e.g. "CHK BRST BNLSS 40LB") — kept for audit/review even
+  // after it's matched to a Product with a different name.
+  rawDescription String?
 }
 
 // ---------------------------------------------------------------------------
@@ -440,4 +458,59 @@ model ToastSyncLog {
   inventoryTransactionsCreated Int              @default(0)
   estimatedIngredientCost      Float            @default(0)
   errorLog                     String? // JSON array of { orderId, itemId?, message }
+}
+
+// ---------------------------------------------------------------------------
+// Invoice product matching memory (see services/invoice-parser)
+// ---------------------------------------------------------------------------
+
+// Remembers "this text on this supplier's invoices means this Product",
+// confirmed once by a person on the receiving-review screen, so the next
+// invoice from the same supplier auto-matches instead of asking again.
+model SupplierProductAlias {
+  id             String   @id @default(cuid())
+  supplierId     String?
+  supplier       Supplier? @relation(fields: [supplierId], references: [id])
+  // Normalized (lowercased/trimmed) invoice line text this alias matches.
+  normalizedText String
+  rawText        String
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([supplierId, normalizedText])
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Application settings (singleton row)
+// ---------------------------------------------------------------------------
+
+model Settings {
+  id String @id @default("singleton")
+
+  // Restaurant
+  restaurantName String  @default("My Restaurant")
+  address        String?
+  timezone       String  @default("America/New_York")
+  currency       String  @default("USD")
+
+  // Inventory
+  defaultInventoryUnitCode String  @default("lb")
+  lowStockNotify           Boolean @default(true)
+  varianceThresholdPct     Float   @default(10)
+  countRequiresFullList    Boolean @default(false)
+
+  // Food cost
+  costMethod          String @default("WEIGHTED_AVERAGE") // WEIGHTED_AVERAGE | LAST_COST
+  foodCostTargetPct   Float  @default(30)
+
+  // Notifications
+  notifyLowStock        Boolean @default(true)
+  notifyHighVariance    Boolean @default(true)
+  notifyFailedToastSync Boolean @default(true)
+  notifyUnmappedToast   Boolean @default(true)
+
+  updatedAt DateTime @updatedAt
 }

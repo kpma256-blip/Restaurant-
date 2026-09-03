@@ -1,9 +1,50 @@
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { DashboardData } from "../types";
 import { money, pct, qty } from "../lib/format";
 import { Badge, EmptyState, PageHeader, Spinner, StatCard, StatusDot, Table } from "../components/ui";
+
+function QuickActions() {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const syncToast = useMutation({
+    mutationFn: () => api.post("/toast/sync"),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["toast-status"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
+  const actions = [
+    { label: "Receive Inventory", icon: "➕", onClick: () => navigate("/receive?tab=quick") },
+    { label: "Upload Invoice", icon: "📄", onClick: () => navigate("/receive?tab=upload") },
+    { label: "Record Waste", icon: "🗑️", onClick: () => navigate("/waste") },
+    { label: "Inventory Count", icon: "📋", onClick: () => navigate("/counts") },
+    {
+      label: syncToast.isPending ? "Syncing…" : syncToast.isSuccess ? "Synced ✓" : "Sync Toast",
+      icon: "🔄",
+      onClick: () => syncToast.mutate(),
+      disabled: syncToast.isPending,
+    },
+  ];
+
+  return (
+    <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+      {actions.map((a) => (
+        <button
+          key={a.label}
+          onClick={a.onClick}
+          disabled={a.disabled}
+          className="card flex flex-col items-center justify-center gap-1.5 p-4 text-center transition hover:border-brand-300 hover:bg-brand-50 disabled:opacity-60"
+        >
+          <span className="text-2xl">{a.icon}</span>
+          <span className="text-sm font-semibold text-slate-700">{a.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data, isLoading } = useQuery<DashboardData>({
@@ -17,6 +58,8 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="Dashboard" subtitle={`As of ${new Date(data.asOf).toLocaleString()}`} />
+
+      <QuickActions />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Current inventory value" value={money(data.currentInventoryValue)} />

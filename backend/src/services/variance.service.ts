@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { VARIANCE_INVESTIGATION_THRESHOLD_PCT } from "../lib/constants";
+import { getSettings } from "../lib/settingsCache";
 
 export interface ProductVarianceBreakdown {
   productId: string;
@@ -48,7 +48,10 @@ export async function calculateProductVariance(
   periodStart: Date,
   periodEnd: Date
 ): Promise<ProductVarianceBreakdown> {
-  const product = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+  const [product, settings] = await Promise.all([
+    prisma.product.findUniqueOrThrow({ where: { id: productId } }),
+    getSettings(),
+  ]);
 
   // If a physical count landed inside this period, the theoretical
   // roll-forward must stop AT the count's date, not at periodEnd — a
@@ -120,7 +123,7 @@ export async function calculateProductVariance(
     physicalCountDate: latestCountItem?.count.countDate.toISOString() ?? null,
     variance,
     variancePct,
-    requiresInvestigation: variancePct != null && Math.abs(variancePct) > VARIANCE_INVESTIGATION_THRESHOLD_PCT,
+    requiresInvestigation: variancePct != null && Math.abs(variancePct) > settings.varianceThresholdPct,
   };
 }
 

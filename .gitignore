@@ -5,5 +5,7 @@ build/
 .env.local
 *.log
 
+backend/uploads/
+
 .DS_Store
 *.tsbuildinfo

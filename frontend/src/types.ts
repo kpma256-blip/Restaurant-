@@ -242,3 +242,87 @@ export interface User {
   email: string;
   role: string;
 }
+
+export interface ProductMatch {
+  productId: string | null;
+  productName: string | null;
+  confidence: number;
+  source: "ALIAS" | "FUZZY" | "NONE";
+}
+
+export interface ParsedInvoiceItem {
+  rawDescription: string;
+  quantity: number | null;
+  unitCode: string | null;
+  unitRawText: string | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  match: ProductMatch;
+}
+
+export interface ParsedInvoiceResponse {
+  draftId: string;
+  draftStoragePath: string;
+  fileHash: string;
+  duplicateOf: { purchaseId: string; purchaseDate: string } | null;
+  supplierGuess: string | null;
+  supplierId: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  usedOcr: boolean;
+  ocrConfidence: number | null;
+  items: ParsedInvoiceItem[];
+}
+
+export interface ReceivingListItem {
+  id: string;
+  purchaseDate: string;
+  supplier: string | null;
+  invoiceNumber: string | null;
+  itemCount: number;
+  totalCost: number;
+  sourceType: "MANUAL" | "PDF_UPLOAD";
+  hasInvoiceFile: boolean;
+  createdBy: string | null;
+}
+
+export interface ReceivingDetail {
+  id: string;
+  purchaseDate: string;
+  invoiceNumber: string | null;
+  notes: string | null;
+  totalCost: number;
+  sourceType: string;
+  supplier: Supplier | null;
+  createdByUser: { name: string } | null;
+  invoiceFileOriginalName: string | null;
+  invoiceFileStoragePath: string | null;
+  items: {
+    id: string;
+    productId: string;
+    product: Product;
+    quantity: number;
+    unitCode: string;
+    unitCost: number;
+    totalCost: number;
+    rawDescription: string | null;
+  }[];
+}
+
+export interface AppSettings {
+  id: string;
+  restaurantName: string;
+  address?: string | null;
+  timezone: string;
+  currency: string;
+  defaultInventoryUnitCode: string;
+  lowStockNotify: boolean;
+  varianceThresholdPct: number;
+  countRequiresFullList: boolean;
+  costMethod: "WEIGHTED_AVERAGE" | "LAST_COST";
+  foodCostTargetPct: number;
+  notifyLowStock: boolean;
+  notifyHighVariance: boolean;
+  notifyFailedToastSync: boolean;
+  notifyUnmappedToast: boolean;
+}

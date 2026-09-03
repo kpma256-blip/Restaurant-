@@ -22,10 +22,12 @@ import { productsRouter } from "./routes/products.routes";
 import { menuItemsRouter } from "./routes/menuItems.routes";
 import { salesRouter } from "./routes/sales.routes";
 import { inventoryRouter } from "./routes/inventory.routes";
+import { receivingRouter } from "./routes/receiving.routes";
 import { dashboardRouter } from "./routes/dashboard.routes";
 import { reportsRouter } from "./routes/reports.routes";
 import { alertsRouter } from "./routes/alerts.routes";
 import { usersRouter } from "./routes/users.routes";
+import { settingsRouter } from "./routes/settings.routes";
 import { toastRouter } from "./routes/toast.routes";
 import { toastWebhookRouter } from "./integrations/toast/webhook";
 
@@ -48,10 +50,12 @@ export function createApp() {
   app.use("/api/menu-items", menuItemsRouter);
   app.use("/api/sales", salesRouter);
   app.use("/api/inventory", inventoryRouter);
+  app.use("/api/receiving", receivingRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/reports", reportsRouter);
   app.use("/api/alerts", alertsRouter);
   app.use("/api/users", usersRouter);
+  app.use("/api/settings", settingsRouter);
   app.use("/api/toast", toastRouter);
   app.use("/api/toast/webhook", toastWebhookRouter);
 

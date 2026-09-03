@@ -22,6 +22,9 @@ async function main() {
       { code: "lb", name: "Pound", dimension: "WEIGHT", toBaseFactor: 453.59237 },
       { code: "ml", name: "Milliliter", dimension: "VOLUME", toBaseFactor: 1, isBaseUnit: true },
       { code: "L", name: "Liter", dimension: "VOLUME", toBaseFactor: 1000 },
+      { code: "pt", name: "Pint", dimension: "VOLUME", toBaseFactor: 473.176473 },
+      { code: "qt", name: "Quart", dimension: "VOLUME", toBaseFactor: 946.352946 },
+      { code: "gal", name: "Gallon", dimension: "VOLUME", toBaseFactor: 3785.411784 },
       { code: "each", name: "Each", dimension: "COUNT", toBaseFactor: 1, isBaseUnit: true },
       { code: "dozen", name: "Dozen", dimension: "COUNT", toBaseFactor: 12 },
       { code: "case", name: "Case", dimension: "COUNT", toBaseFactor: 1 }, // product-specific — see Product.caseSize
