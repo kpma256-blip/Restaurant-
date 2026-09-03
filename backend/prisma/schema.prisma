@@ -1,0 +1,445 @@
+// Restaurant Inventory Management System — data model
+//
+// Design principle: the InventoryTransaction table is the single source of
+// truth for stock levels. Product.currentQuantity/avgCost are CACHED
+// projections written only by inventoryLedger.service.ts, and can always be
+// rebuilt by summing InventoryTransaction rows for a product. Never write
+// to those cached fields directly from route/service code.
+//
+// Default datasource is SQLite for zero-config local development and CI.
+// To run on PostgreSQL for production: change `provider` below to
+// "postgresql", point DATABASE_URL at a Postgres instance, and re-run
+// `prisma migrate dev` — no application code changes are required because
+// all queries go through Prisma Client. See docker-compose.yml for a
+// ready-made Postgres service.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Reference data
+// ---------------------------------------------------------------------------
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  sortOrder   Int       @default(0)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// SQLite has no native enum type, so enum-like fields below are plain
+// Strings validated at the application layer (see src/lib/constants.ts for
+// the canonical value lists and Zod schemas).
+//
+// UnitDimension: WEIGHT | VOLUME | COUNT
+
+// Global unit-of-measure table. `toBaseFactor` converts 1 of this unit into
+// the base unit of its dimension (grams for WEIGHT, milliliters for VOLUME,
+// each for COUNT). "case" is intentionally NOT a fixed global factor because
+// case size varies per product — see Product.caseSize.
+model Unit {
+  code                String            @id // oz, lb, g, kg, ml, L, each, dozen, case
+  name                String
+  dimension           String // WEIGHT | VOLUME | COUNT
+  toBaseFactor        Float // ignored for "case"; product.caseSize used instead
+  isBaseUnit          Boolean           @default(false)
+
+  productsInventory   Product[]         @relation("ProductInventoryUnit")
+  productsCost        Product[]         @relation("ProductCostUnit")
+  recipeIngredients   RecipeIngredient[]
+  modifierIngredients ModifierIngredient[]
+  purchaseItems       PurchaseItem[]
+  wasteRecords        WasteRecord[]
+  countItems          InventoryCountItem[]
+  transactions        InventoryTransaction[]
+}
+
+model Supplier {
+  id          String     @id @default(cuid())
+  name        String
+  contactName String?
+  phone       String?
+  email       String?
+  notes       String?
+  products    Product[]
+  purchases   Purchase[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Users (lightweight — full auth/permissions is a documented future item)
+// ---------------------------------------------------------------------------
+
+// UserRole: ADMIN | MANAGER | STAFF
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  role         String   @default("STAFF")
+  createdAt    DateTime @default(now())
+
+  transactions InventoryTransaction[]
+  wasteRecords WasteRecord[]
+  purchases    Purchase[]
+  counts       InventoryCount[]
+  sales        Sale[]
+}
+
+// ---------------------------------------------------------------------------
+// Inventory items (ingredients / stock-keeping units)
+// ---------------------------------------------------------------------------
+
+model Product {
+  id               String   @id @default(cuid())
+  name             String
+  sku              String?
+  categoryId       String
+  category         Category @relation(fields: [categoryId], references: [id])
+
+  // Unit that on-hand quantity, par level, and reorder level are denominated in.
+  inventoryUnitCode String
+  inventoryUnit     Unit    @relation("ProductInventoryUnit", fields: [inventoryUnitCode], references: [code])
+
+  // Unit that lastCost/avgCost are per-unit-of. Normally equal to inventoryUnitCode.
+  costUnitCode      String
+  costUnit          Unit    @relation("ProductCostUnit", fields: [costUnitCode], references: [code])
+
+  // How many inventoryUnits make up one "case" of this specific product
+  // (e.g. a case of buns = 48 each). Required only if the product is ever
+  // received/counted in "case" units.
+  caseSize         Float?
+
+  parLevel         Float    @default(0)
+  reorderLevel     Float    @default(0)
+
+  // --- Cached projections of the ledger. Source of truth = InventoryTransaction. ---
+  currentQuantity  Float    @default(0)
+  lastCost         Float    @default(0)
+  avgCost          Float    @default(0)
+
+  supplierId       String?
+  supplier         Supplier? @relation(fields: [supplierId], references: [id])
+
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  recipeIngredients   RecipeIngredient[]
+  modifierIngredients ModifierIngredient[]
+  transactions        InventoryTransaction[]
+  purchaseItems       PurchaseItem[]
+  wasteRecords        WasteRecord[]
+  countItems          InventoryCountItem[]
+
+  @@index([categoryId])
+}
+
+// ---------------------------------------------------------------------------
+// Recipes / Bill of Materials
+// ---------------------------------------------------------------------------
+
+model MenuItem {
+  id           String   @id @default(cuid())
+  name         String
+  sellingPrice Float
+  categoryLabel String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  recipe          Recipe?
+  modifiers       Modifier[]
+  saleItems       SaleItem[]
+  toastMapping    ToastMenuItemMapping?
+}
+
+model Recipe {
+  id            String   @id @default(cuid())
+  menuItemId    String   @unique
+  menuItem      MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  yieldQuantity Float    @default(1)
+  notes         String?
+  ingredients   RecipeIngredient[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model RecipeIngredient {
+  id         String  @id @default(cuid())
+  recipeId   String
+  recipe     Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Float
+  unitCode   String
+  unit       Unit    @relation(fields: [unitCode], references: [code])
+
+  @@index([recipeId])
+}
+
+// A modifier represents an add-on/variation (e.g. "Extra Cheese") that adds
+// (or could later subtract) ingredient consumption on top of the base recipe.
+model Modifier {
+  id               String   @id @default(cuid())
+  menuItemId       String
+  menuItem         MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  name             String
+  ingredients      ModifierIngredient[]
+  toastMapping     ToastModifierMapping?
+  createdAt        DateTime @default(now())
+
+  @@index([menuItemId])
+}
+
+model ModifierIngredient {
+  id         String   @id @default(cuid())
+  modifierId String
+  modifier   Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Float
+  unitCode   String
+  unit       Unit     @relation(fields: [unitCode], references: [code])
+}
+
+// ---------------------------------------------------------------------------
+// Sales (manually entered today; normalized so Toast — or any POS — can
+// populate the exact same tables tomorrow. See src/integrations/toast.)
+// ---------------------------------------------------------------------------
+
+// SaleSource: MANUAL | TOAST
+model Sale {
+  id             String     @id @default(cuid())
+  saleDate       DateTime
+  source         String     @default("MANUAL")
+  externalOrderId String?   // Toast order GUID (or future POS order id)
+  checkNumber    String?
+  totalAmount    Float      @default(0)
+  note           String?
+  createdByUserId String?
+  createdByUser  User?      @relation(fields: [createdByUserId], references: [id])
+  createdAt      DateTime   @default(now())
+
+  items SaleItem[]
+
+  // Guarantees idempotency: the same Toast order can be synced repeatedly
+  // without ever creating a duplicate Sale / duplicate inventory deduction.
+  @@unique([source, externalOrderId])
+  @@index([saleDate])
+}
+
+model SaleItem {
+  id                  String   @id @default(cuid())
+  saleId              String
+  sale                Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  menuItemId          String?
+  menuItem            MenuItem? @relation(fields: [menuItemId], references: [id])
+  menuItemNameSnapshot String
+  quantity            Float
+  unitPrice           Float    @default(0)
+  modifiersJson       String?  // JSON: [{ name, toastModifierGuid, quantity }]
+  externalItemId      String?  // Toast selection GUID, for idempotency at item level
+  ingredientCost      Float    @default(0) // computed food cost for this line at time of sale
+
+  @@unique([saleId, externalItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Purchasing / receiving
+// ---------------------------------------------------------------------------
+
+model Purchase {
+  id              String   @id @default(cuid())
+  supplierId      String?
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  purchaseDate    DateTime
+  invoiceNumber   String?
+  notes           String?
+  totalCost       Float    @default(0)
+  createdByUserId String?
+  createdByUser   User?    @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime @default(now())
+
+  items PurchaseItem[]
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Float
+  unitCode   String
+  unit       Unit     @relation(fields: [unitCode], references: [code])
+  unitCost   Float
+  totalCost  Float
+}
+
+// ---------------------------------------------------------------------------
+// Waste
+// ---------------------------------------------------------------------------
+
+// WasteReason: SPOILED | DAMAGED | DROPPED | EXPIRED | OVERPRODUCTION | STAFF_MEAL | OTHER
+model WasteRecord {
+  id        String      @id @default(cuid())
+  productId String
+  product   Product     @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitCode  String
+  unit      Unit        @relation(fields: [unitCode], references: [code])
+  reason    String
+  wasteDate DateTime
+  notes     String?
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  createdAt DateTime    @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Physical inventory counts
+// ---------------------------------------------------------------------------
+
+// CountStatus: OPEN | COMPLETED
+model InventoryCount {
+  id              String      @id @default(cuid())
+  countDate       DateTime
+  status          String      @default("OPEN")
+  notes           String?
+  countedByUserId String?
+  countedByUser   User?       @relation(fields: [countedByUserId], references: [id])
+  completedAt     DateTime?
+  createdAt       DateTime    @default(now())
+
+  items InventoryCountItem[]
+}
+
+model InventoryCountItem {
+  id                  String          @id @default(cuid())
+  countId             String
+  count               InventoryCount  @relation(fields: [countId], references: [id], onDelete: Cascade)
+  productId           String
+  product             Product         @relation(fields: [productId], references: [id])
+  theoreticalQuantity Float // snapshot of ledger-derived quantity at count time
+  physicalQuantity    Float?
+  unitCode            String
+  unit                Unit            @relation(fields: [unitCode], references: [code])
+  varianceQty         Float?
+  variancePct         Float?
+
+  @@index([countId])
+}
+
+// ---------------------------------------------------------------------------
+// THE LEDGER — source of truth for all inventory quantities
+// ---------------------------------------------------------------------------
+
+// TransactionType: PURCHASE | SALE | WASTE | ADJUSTMENT | PHYSICAL_COUNT | TRANSFER | STAFF_MEAL | CORRECTION | OTHER
+model InventoryTransaction {
+  id               String          @id @default(cuid())
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id])
+  type             String
+
+  // Signed quantity, normalized into product.inventoryUnitCode. This is what
+  // current inventory is computed from (SUM over a product's transactions).
+  quantity         Float
+
+  // The unit/quantity as originally entered (for a faithful audit trail).
+  unitCode         String
+  unit             Unit            @relation(fields: [unitCode], references: [code])
+  originalQuantity Float
+
+  // Snapshot fields for human-readable history — NOT authoritative.
+  // Recomputed/verified by inventoryLedger.service.reconcileProduct().
+  previousQuantity Float
+  newQuantity      Float
+
+  unitCost         Float?
+  totalCost        Float?
+
+  reason           String?
+  notes            String?
+
+  referenceType    String? // SALE | PURCHASE | WASTE | COUNT | MANUAL | TOAST_SYNC
+  referenceId      String?
+
+  userId           String?
+  user             User?           @relation(fields: [userId], references: [id])
+
+  createdAt        DateTime        @default(now())
+
+  @@index([productId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+// ---------------------------------------------------------------------------
+// Toast POS integration (see backend/src/integrations/toast)
+// ---------------------------------------------------------------------------
+
+// ToastSyncTrigger: MANUAL | SCHEDULED | WEBHOOK | HISTORICAL
+// ToastSyncStatus: SUCCESS | PARTIAL | FAILED | RUNNING
+
+// Singleton-style row (one per Toast restaurant connected). Secrets are
+// encrypted at rest — see integrations/toast/config.ts — and are never sent
+// to the frontend.
+model ToastConnection {
+  id                      String            @id @default(cuid())
+  environment             String            @default("sandbox") // sandbox | production
+  restaurantGuid          String?
+  clientId                String?
+  encryptedClientSecret   String?
+  connected               Boolean           @default(false)
+  autoSyncEnabled         Boolean           @default(false)
+  autoSyncIntervalMinutes Int               @default(15)
+  lastSyncAt              DateTime?
+  lastSyncStatus          String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+}
+
+model ToastMenuItemMapping {
+  id                 String    @id @default(cuid())
+  toastGuid          String    @unique
+  toastName          String
+  toastCategory      String?
+  internalMenuItemId String?   @unique
+  internalMenuItem   MenuItem? @relation(fields: [internalMenuItemId], references: [id])
+  isIgnored          Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model ToastModifierMapping {
+  id                String    @id @default(cuid())
+  toastModifierGuid String    @unique
+  toastModifierName String
+  internalModifierId String?  @unique
+  internalModifier  Modifier? @relation(fields: [internalModifierId], references: [id])
+  createdAt         DateTime  @default(now())
+}
+
+model ToastSyncLog {
+  id                           String           @id @default(cuid())
+  startedAt                    DateTime         @default(now())
+  finishedAt                   DateTime?
+  trigger                      String
+  status                       String
+  ordersFetched                Int              @default(0)
+  ordersImported               Int              @default(0)
+  ordersSkippedDuplicate       Int              @default(0)
+  ordersFailed                 Int              @default(0)
+  inventoryTransactionsCreated Int              @default(0)
+  estimatedIngredientCost      Float            @default(0)
+  errorLog                     String? // JSON array of { orderId, itemId?, message }
+}
