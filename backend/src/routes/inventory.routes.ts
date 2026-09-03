@@ -140,6 +140,44 @@ inventoryRouter.get(
 );
 
 // ---------------------------------------------------------------------------
+// Adjustments (quick add/remove without receiving or waste workflow)
+// ---------------------------------------------------------------------------
+
+const adjustSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.number(), // can be positive or negative
+  unitCode: z.string().min(1),
+  reason: z.string().optional(),
+  adjustedAt: z.coerce.date().default(() => new Date()),
+});
+
+inventoryRouter.post(
+  "/adjust",
+  asyncHandler(async (req, res) => {
+    const body = adjustSchema.parse(req.body);
+
+    const product = await prisma.product.findUnique({ where: { id: body.productId } });
+    if (!product) throw new NotFoundError("Product not found");
+
+    const result = await applyInventoryTransaction(
+      {
+        productId: body.productId,
+        type: "ADJUSTMENT",
+        quantity: body.quantity,
+        unitCode: body.unitCode,
+        reason: body.reason || null,
+        referenceType: "ADJUSTMENT",
+        referenceId: null,
+        userId: req.userId ?? null,
+        occurredAt: body.adjustedAt,
+      }
+    );
+
+    res.status(201).json(result);
+  })
+);
+
+// ---------------------------------------------------------------------------
 // Physical inventory counts
 // ---------------------------------------------------------------------------
 

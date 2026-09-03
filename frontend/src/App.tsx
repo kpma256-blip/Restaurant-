@@ -7,6 +7,7 @@ import Receive from "./pages/Receive";
 import ReceivingHistory from "./pages/ReceivingHistory";
 import ReceivingDetail from "./pages/ReceivingDetail";
 import Waste from "./pages/Waste";
+import AdjustInventory from "./pages/AdjustInventory";
 import Sales from "./pages/Sales";
 import Counts from "./pages/Counts";
 import CountDetail from "./pages/CountDetail";
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/receiving" element={<ReceivingHistory />} />
         <Route path="/receiving/:id" element={<ReceivingDetail />} />
         <Route path="/waste" element={<Waste />} />
+        <Route path="/adjust" element={<AdjustInventory />} />
         <Route path="/sales" element={<Sales />} />
         <Route path="/counts" element={<Counts />} />
         <Route path="/counts/:id" element={<CountDetail />} />

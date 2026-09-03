@@ -21,6 +21,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Inventory",
     items: [
       { to: "/products", label: "Inventory", icon: "📦" },
+      { to: "/adjust", label: "Adjust Stock", icon: "🔧" },
       { to: "/receive", label: "Receive Inventory", icon: "🚚" },
       { to: "/receiving", label: "Receiving History", icon: "📜" },
       { to: "/counts", label: "Inventory Counts", icon: "🔢" },
