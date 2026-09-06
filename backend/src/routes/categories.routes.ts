@@ -7,8 +7,17 @@ export const categoriesRouter = Router();
 
 categoriesRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const categories = await prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
+  asyncHandler(async (req, res) => {
+    const includeTypes = req.query.includeTypes === "true";
+    const categories = await prisma.category.findMany({
+      orderBy: { sortOrder: "asc" },
+      include: includeTypes ? {
+        productTypes: {
+          where: { isActive: true },
+          orderBy: { name: "asc" }
+        }
+      } : undefined
+    });
     res.json(categories);
   })
 );

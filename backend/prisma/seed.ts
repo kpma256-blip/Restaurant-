@@ -28,23 +28,28 @@ async function main() {
       { code: "each", name: "Each", dimension: "COUNT", toBaseFactor: 1, isBaseUnit: true },
       { code: "dozen", name: "Dozen", dimension: "COUNT", toBaseFactor: 12 },
       { code: "case", name: "Case", dimension: "COUNT", toBaseFactor: 1 }, // product-specific — see Product.caseSize
+      { code: "box", name: "Box", dimension: "COUNT", toBaseFactor: 1 },
+      { code: "bag", name: "Bag", dimension: "COUNT", toBaseFactor: 1 },
+      { code: "pack", name: "Pack", dimension: "COUNT", toBaseFactor: 1 },
+      { code: "bottle", name: "Bottle", dimension: "COUNT", toBaseFactor: 1 },
+      { code: "container", name: "Container", dimension: "COUNT", toBaseFactor: 1 },
     ],
   });
 
   console.log("Seeding categories...");
   const categoryNames = [
+    "Produce",
     "Meat",
     "Seafood",
-    "Produce",
     "Dairy",
-    "Cheese",
     "Dry Goods",
-    "Sauces",
-    "Spices",
+    "Condiments & Sauces",
     "Frozen",
+    "Bakery",
     "Beverages",
-    "Cleaning Supplies",
+    "Cleaning & Sanitation",
     "Packaging",
+    "Disposables",
     "Other",
   ];
   const categories: Record<string, string> = {};
@@ -54,39 +59,33 @@ async function main() {
   }
 
   console.log("Seeding product types...");
-  const productTypeNames = [
-    "Chicken Breast",
-    "Ground Beef",
-    "Bacon",
-    "Sirloin Steak",
-    "Salmon Fillet",
-    "Shrimp",
-    "Lettuce",
-    "Tomato",
-    "Onion",
-    "Milk",
-    "Cheddar Cheese",
-    "Swiss Cheese",
-    "Burger Buns",
-    "Sandwich Bread",
-    "House Sauce",
-    "Ketchup",
-    "Salt",
-    "Black Pepper",
-    "Frozen Fries",
-    "Ice Cream",
-    "Iced Tea Mix",
-    "Soda Syrup",
-    "Dish Soap",
-    "Sanitizer",
-    "To-Go Boxes",
-    "Napkins",
-    "Take-out Bags",
-  ];
+  // Map product type names to their categories
+  const productTypesByCategory: Record<string, string[]> = {
+    "Meat": ["Chicken Breast", "Ground Beef", "Bacon", "Sirloin Steak"],
+    "Seafood": ["Salmon Fillet", "Shrimp"],
+    "Produce": ["Lettuce", "Tomato", "Onion"],
+    "Dairy": ["Milk"],
+    "Dry Goods": ["Cheddar Cheese", "Swiss Cheese", "Burger Buns", "Sandwich Bread"],
+    "Condiments & Sauces": ["House Sauce", "Ketchup", "Salt", "Black Pepper"],
+    "Frozen": ["Frozen Fries", "Ice Cream"],
+    "Beverages": ["Iced Tea Mix", "Soda Syrup"],
+    "Cleaning & Sanitation": ["Dish Soap", "Sanitizer"],
+    "Packaging": ["To-Go Boxes", "Napkins"],
+    "Disposables": ["Take-out Bags"],
+  };
+
   const productTypes: Record<string, string> = {};
-  for (const ptName of productTypeNames) {
-    const pt = await prisma.productType.create({ data: { name: ptName } });
-    productTypes[ptName] = pt.id;
+  for (const [catName, typeNames] of Object.entries(productTypesByCategory)) {
+    const categoryId = categories[catName];
+    for (const ptName of typeNames) {
+      const pt = await prisma.productType.create({
+        data: {
+          name: ptName,
+          categoryId: categoryId,
+        }
+      });
+      productTypes[ptName] = pt.id;
+    }
   }
 
   console.log("Seeding suppliers...");
@@ -129,23 +128,23 @@ async function main() {
     { name: "Tomato", category: "Produce", unit: "lb", par: 10, reorder: 3, cost: 2.2, beginningQty: 8, supplierId: coop.id },
     { name: "Onion", category: "Produce", unit: "lb", par: 12, reorder: 4, cost: 0.9, beginningQty: 14, supplierId: coop.id },
     { name: "Milk", category: "Dairy", unit: "L", par: 20, reorder: 6, cost: 1.05, beginningQty: 18, supplierId: usFoods.id },
-    { name: "Cheddar Cheese", category: "Cheese", unit: "lb", par: 10, reorder: 4, cost: 4.5, beginningQty: 11, supplierId: usFoods.id },
-    { name: "Swiss Cheese", category: "Cheese", unit: "lb", par: 6, reorder: 2, cost: 5.0, beginningQty: 5, supplierId: usFoods.id },
+    { name: "Cheddar Cheese", category: "Dry Goods", unit: "lb", par: 10, reorder: 4, cost: 4.5, beginningQty: 11, supplierId: usFoods.id },
+    { name: "Swiss Cheese", category: "Dry Goods", unit: "lb", par: 6, reorder: 2, cost: 5.0, beginningQty: 5, supplierId: usFoods.id },
     { name: "Burger Buns", category: "Dry Goods", unit: "each", par: 200, reorder: 60, cost: 0.35, beginningQty: 180, supplierId: usFoods.id },
     { name: "Sandwich Bread", category: "Dry Goods", unit: "each", par: 150, reorder: 40, cost: 0.45, beginningQty: 120, supplierId: usFoods.id },
-    { name: "House Sauce", category: "Sauces", unit: "oz", par: 200, reorder: 50, cost: 0.12, beginningQty: 210 },
-    { name: "Ketchup", category: "Sauces", unit: "oz", par: 150, reorder: 40, cost: 0.08, beginningQty: 130 },
-    { name: "Salt", category: "Spices", unit: "lb", par: 20, reorder: 5, cost: 0.6, beginningQty: 18 },
-    { name: "Black Pepper", category: "Spices", unit: "lb", par: 8, reorder: 2, cost: 4.0, beginningQty: 6 },
+    { name: "House Sauce", category: "Condiments & Sauces", unit: "oz", par: 200, reorder: 50, cost: 0.12, beginningQty: 210 },
+    { name: "Ketchup", category: "Condiments & Sauces", unit: "oz", par: 150, reorder: 40, cost: 0.08, beginningQty: 130 },
+    { name: "Salt", category: "Condiments & Sauces", unit: "lb", par: 20, reorder: 5, cost: 0.6, beginningQty: 18 },
+    { name: "Black Pepper", category: "Condiments & Sauces", unit: "lb", par: 8, reorder: 2, cost: 4.0, beginningQty: 6 },
     { name: "Frozen Fries", category: "Frozen", unit: "lb", par: 40, reorder: 15, cost: 1.6, beginningQty: 45, supplierId: usFoods.id },
     { name: "Ice Cream", category: "Frozen", unit: "L", par: 15, reorder: 5, cost: 3.2, beginningQty: 12, supplierId: usFoods.id },
     { name: "Iced Tea Mix", category: "Beverages", unit: "L", par: 20, reorder: 6, cost: 0.9, beginningQty: 22 },
     { name: "Soda Syrup", category: "Beverages", unit: "L", par: 15, reorder: 4, cost: 2.1, beginningQty: 13 },
-    { name: "Dish Soap", category: "Cleaning Supplies", unit: "L", par: 10, reorder: 3, cost: 2.5, beginningQty: 8 },
-    { name: "Sanitizer", category: "Cleaning Supplies", unit: "L", par: 10, reorder: 3, cost: 3.0, beginningQty: 7 },
+    { name: "Dish Soap", category: "Cleaning & Sanitation", unit: "L", par: 10, reorder: 3, cost: 2.5, beginningQty: 8 },
+    { name: "Sanitizer", category: "Cleaning & Sanitation", unit: "L", par: 10, reorder: 3, cost: 3.0, beginningQty: 7 },
     { name: "To-Go Boxes", category: "Packaging", unit: "each", par: 300, reorder: 80, cost: 0.22, beginningQty: 260 },
     { name: "Napkins", category: "Packaging", unit: "each", par: 1000, reorder: 300, cost: 0.01, beginningQty: 1500, caseSize: 500 },
-    { name: "Take-out Bags", category: "Other", unit: "each", par: 200, reorder: 50, cost: 0.08, beginningQty: 175 },
+    { name: "Take-out Bags", category: "Disposables", unit: "each", par: 200, reorder: 50, cost: 0.08, beginningQty: 175 },
   ];
 
   const productIds: Record<string, string> = {};

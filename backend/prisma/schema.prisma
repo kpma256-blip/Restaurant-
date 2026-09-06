@@ -30,18 +30,24 @@ model Category {
   description String?
   sortOrder   Int       @default(0)
   products    Product[]
+  productTypes ProductType[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 }
 
 model ProductType {
   id          String    @id @default(cuid())
-  name        String    @unique
+  name        String
   description String?
   isActive    Boolean   @default(true)
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
 }
 
 // SQLite has no native enum type, so enum-like fields below are plain

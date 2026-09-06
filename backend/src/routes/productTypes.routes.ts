@@ -7,8 +7,10 @@ export const productTypesRouter = Router();
 
 productTypesRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const { categoryId } = req.query;
     const productTypes = await prisma.productType.findMany({
+      where: categoryId ? { categoryId: categoryId as string } : undefined,
       orderBy: { name: "asc" },
       include: { _count: { select: { products: true } } },
     });
@@ -19,6 +21,7 @@ productTypesRouter.get(
 const createSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(500).optional(),
+  categoryId: z.string().min(1),
 });
 
 productTypesRouter.post(
@@ -33,6 +36,7 @@ productTypesRouter.post(
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   description: z.string().max(500).nullable().optional(),
+  categoryId: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
 

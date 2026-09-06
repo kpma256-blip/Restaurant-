@@ -61,6 +61,14 @@ export function useCategories(options?: QueryOptions<any[]>) {
   });
 }
 
+export function useCategoriesWithTypes(options?: QueryOptions<any[]>) {
+  return useQuery<any[]>({
+    queryKey: ["categories-with-types"],
+    queryFn: async () => api.get("/categories?includeTypes=true"),
+    ...options,
+  });
+}
+
 // ProductTypes
 export function useProductTypes(options?: QueryOptions<any[]>) {
   return useQuery<any[]>({
@@ -70,11 +78,23 @@ export function useProductTypes(options?: QueryOptions<any[]>) {
   });
 }
 
+export function useProductTypesByCategory(categoryId: string | null, options?: QueryOptions<any[]>) {
+  return useQuery<any[]>({
+    queryKey: ["product-types", categoryId],
+    queryFn: async () => api.get(`/product-types?categoryId=${categoryId}`),
+    enabled: !!categoryId,
+    ...options,
+  });
+}
+
 export function useCreateProductType(options?: MutationOptions<any>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: any) => api.post("/product-types", data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["product-types"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["product-types"] });
+      qc.invalidateQueries({ queryKey: ["categories-with-types"] });
+    },
     ...options,
   });
 }

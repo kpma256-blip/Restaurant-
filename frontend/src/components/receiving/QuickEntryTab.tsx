@@ -13,10 +13,13 @@ interface Row {
   unitCode: string;
   quantity: string;
   cost: string;
+  purchaseUnitCode?: string;
+  purchaseQuantity?: string;
+  packSize?: string;
 }
 
 let rowKeySeq = 0;
-const emptyRow = (): Row => ({ key: rowKeySeq++, productId: "", productName: "", unitCode: "", quantity: "", cost: "" });
+const emptyRow = (): Row => ({ key: rowKeySeq++, productId: "", productName: "", unitCode: "", quantity: "", cost: "", purchaseUnitCode: "", purchaseQuantity: "", packSize: "" });
 
 export default function QuickEntryTab() {
   const qc = useQueryClient();
@@ -84,66 +87,100 @@ export default function QuickEntryTab() {
           <thead className="bg-slate-50 text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-2 text-left">Product</th>
-              <th className="px-3 py-2 text-left">Quantity</th>
+              <th className="px-3 py-2 text-left">Purchase Qty</th>
               <th className="px-3 py-2 text-left">Unit</th>
+              <th className="px-3 py-2 text-left">Inventory Qty</th>
               <th className="px-3 py-2 text-left">Cost / unit</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
-              <tr key={row.key}>
-                <td className="min-w-[220px] px-3 py-2">
-                  <SearchableSelect
-                    options={productOptions}
-                    value={row.productId || null}
-                    placeholder="Search product…"
-                    allowCreate
-                    onChange={(val) => {
-                      const p = products?.find((x) => x.id === val);
-                      updateRow(row.key, { productId: val, productName: p?.name ?? "", unitCode: row.unitCode || p?.inventoryUnitCode || "" });
-                    }}
-                    onCreateNew={(typed) => setCreateForRow({ key: row.key, name: typed })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    className="input w-24"
-                    value={row.quantity}
-                    onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <select className="input w-28" value={row.unitCode} onChange={(e) => updateRow(row.key, { unitCode: e.target.value })}>
-                    <option value="">Unit…</option>
-                    {units?.map((u) => (
-                      <option key={u.code} value={u.code}>
-                        {u.code}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    className="input w-28"
-                    placeholder="$"
-                    value={row.cost}
-                    onChange={(e) => updateRow(row.key, { cost: e.target.value })}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <button type="button" className="text-slate-400 hover:text-rose-600" onClick={() => removeRow(row.key)} aria-label="Remove row">
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const product = products?.find((x) => x.id === row.productId);
+              const hasPurchaseUnit = product?.purchaseUnitCode && product?.purchaseUnitCode !== product?.inventoryUnitCode;
+              const purchaseQty = row.purchaseQuantity ? parseFloat(row.purchaseQuantity) : null;
+              const packSize = product?.purchaseToInventoryFactor || 1;
+              const calculatedInventoryQty = purchaseQty !== null ? (purchaseQty * packSize).toFixed(2) : null;
+
+              return (
+                <tr key={row.key}>
+                  <td className="min-w-[220px] px-3 py-2">
+                    <SearchableSelect
+                      options={productOptions}
+                      value={row.productId || null}
+                      placeholder="Search product…"
+                      allowCreate
+                      onChange={(val) => {
+                        const p = products?.find((x) => x.id === val);
+                        updateRow(row.key, {
+                          productId: val,
+                          productName: p?.name ?? "",
+                          unitCode: p?.inventoryUnitCode || "",
+                          purchaseUnitCode: p?.purchaseUnitCode || "",
+                          purchaseQuantity: "",
+                          packSize: p?.purchaseToInventoryFactor?.toString() || "1"
+                        });
+                      }}
+                      onCreateNew={(typed) => setCreateForRow({ key: row.key, name: typed })}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="input w-20"
+                      placeholder={hasPurchaseUnit ? "Qty" : "—"}
+                      value={hasPurchaseUnit ? row.purchaseQuantity : ""}
+                      onChange={(e) => updateRow(row.key, { purchaseQuantity: e.target.value, quantity: hasPurchaseUnit ? e.target.value : row.quantity })}
+                      disabled={!hasPurchaseUnit}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-600">
+                    {hasPurchaseUnit ? product?.purchaseUnitCode : product?.inventoryUnitCode}
+                  </td>
+                  <td className="px-3 py-2">
+                    {hasPurchaseUnit ? (
+                      <div className="text-sm">
+                        {calculatedInventoryQty !== null ? (
+                          <>
+                            <span className="font-medium">{calculatedInventoryQty}</span>
+                            <span className="text-xs text-slate-500 ml-1">{product?.inventoryUnitCode}</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="input w-20"
+                        value={row.quantity}
+                        onChange={(e) => updateRow(row.key, { quantity: e.target.value, purchaseQuantity: e.target.value })}
+                      />
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      className="input w-24"
+                      placeholder="$"
+                      value={row.cost}
+                      onChange={(e) => updateRow(row.key, { cost: e.target.value })}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <button type="button" className="text-slate-400 hover:text-rose-600" onClick={() => removeRow(row.key)} aria-label="Remove row">
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

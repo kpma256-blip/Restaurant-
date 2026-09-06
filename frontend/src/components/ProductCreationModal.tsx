@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { Category, Unit, ProductType } from "../types";
 import { Modal } from "./ui";
+import { useProductTypesByCategory } from "../hooks/useApi";
 
 interface ProductCreationModalProps {
   open: boolean;
@@ -34,10 +35,7 @@ export default function ProductCreationModal({ open, onClose, onSuccess }: Produ
     queryFn: () => api.get("/categories"),
   });
 
-  const { data: productTypes } = useQuery<ProductType[]>({
-    queryKey: ["product-types"],
-    queryFn: () => api.get("/product-types"),
-  });
+  const { data: categoryProductTypes } = useProductTypesByCategory(form.categoryId || null);
 
   const { data: units } = useQuery<Unit[]>({
     queryKey: ["units"],
@@ -50,9 +48,12 @@ export default function ProductCreationModal({ open, onClose, onSuccess }: Produ
   });
 
   const createType = useMutation({
-    mutationFn: () => api.post<ProductType>("/product-types", { name: form.productTypeName }),
+    mutationFn: () => api.post<ProductType>("/product-types", {
+      name: form.productTypeName,
+      categoryId: form.categoryId,
+    }),
     onSuccess: (created) => {
-      qc.invalidateQueries({ queryKey: ["product-types"] });
+      qc.invalidateQueries({ queryKey: ["product-types", form.categoryId] });
       setForm({ ...form, productTypeId: created.id, productTypeName: "" });
       setShowNewType(false);
     },
@@ -117,25 +118,33 @@ export default function ProductCreationModal({ open, onClose, onSuccess }: Produ
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Product Type (optional)</label>
-              <select
-                className="input w-full"
-                value={form.productTypeId}
-                onChange={(e) => setForm({ ...form, productTypeId: e.target.value })}
-              >
-                <option value="">Select type…</option>
-                {productTypes?.map((pt) => (
-                  <option key={pt.id} value={pt.id}>
-                    {pt.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="text-xs text-blue-600 mt-1"
-                onClick={() => setShowNewType(true)}
-              >
-                + Create new type
-              </button>
+              <label className="block text-sm font-medium mb-1">Product Type</label>
+              {!form.categoryId ? (
+                <div className="input w-full bg-slate-100 text-slate-500 flex items-center">
+                  <span className="text-sm">Select a category first</span>
+                </div>
+              ) : (
+                <>
+                  <select
+                    className="input w-full"
+                    value={form.productTypeId}
+                    onChange={(e) => setForm({ ...form, productTypeId: e.target.value })}
+                  >
+                    <option value="">Select type (optional)…</option>
+                    {categoryProductTypes?.map((pt) => (
+                      <option key={pt.id} value={pt.id}>
+                        {pt.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="text-xs text-blue-600 mt-1"
+                    onClick={() => setShowNewType(true)}
+                  >
+                    + Create new type
+                  </button>
+                </>
+              )}
             </div>
 
             <div className="flex gap-2 justify-end pt-4">
