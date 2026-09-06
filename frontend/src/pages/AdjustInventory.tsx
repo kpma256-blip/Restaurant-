@@ -1,146 +1,143 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api/client";
-import { Product, Unit } from "../types";
-import { PageHeader, Spinner } from "../components/ui";
+import { FormEvent } from "react";
+import { PageHeader, EmptyState } from "../components/ui";
+import { SkeletonCard } from "../components/Skeleton";
+import { SelectInput, NumberInput, TextInput } from "../components/FormInputs";
+import { getErrorMessage } from "../lib/constants";
+import { useForm } from "../hooks/useForm";
+import { useProducts, useUnits, useAdjustInventory } from "../hooks/useApi";
+
+const INITIAL_ADJUST = {
+  productId: "",
+  quantity: "",
+  unitCode: "",
+  reason: "",
+};
 
 export default function AdjustInventory() {
-  const qc = useQueryClient();
-  const [form, setForm] = useState({
-    productId: "",
-    quantity: "",
-    unitCode: "",
-    reason: "",
-  });
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: units, isLoading: unitsLoading } = useUnits();
 
-  const { data: products, isLoading: productsLoading } = useQuery<Product[]>({
-    queryKey: ["products"],
-    queryFn: () => api.get("/products"),
-  });
-
-  const { data: units } = useQuery<Unit[]>({
-    queryKey: ["units"],
-    queryFn: () => api.get("/units"),
-  });
-
-  const adjust = useMutation({
-    mutationFn: () =>
-      api.post("/inventory/adjust", {
-        productId: form.productId,
-        quantity: parseFloat(form.quantity),
-        unitCode: form.unitCode,
-        reason: form.reason || undefined,
-      }),
+  const form = useForm(INITIAL_ADJUST);
+  const adjust = useAdjustInventory({
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      qc.invalidateQueries({ queryKey: ["alerts"] });
-      setForm({ productId: "", quantity: "", unitCode: "", reason: "" });
+      form.reset();
     },
   });
 
-  const selectedProduct = products?.find((p) => p.id === form.productId);
-  const canSubmit = form.productId && form.quantity && form.unitCode;
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
 
-  if (productsLoading) return <Spinner />;
+    if (!form.values.productId) {
+      form.setError("productId", "Product is required");
+      return;
+    }
+    if (!form.values.quantity) {
+      form.setError("quantity", "Quantity is required");
+      return;
+    }
+    if (!form.values.unitCode) {
+      form.setError("unitCode", "Unit is required");
+      return;
+    }
+
+    adjust.mutate({
+      productId: form.values.productId,
+      quantity: Number(form.values.quantity),
+      unitCode: form.values.unitCode,
+      reason: form.values.reason || undefined,
+    });
+  };
+
+  const selectedProduct = products?.find((p) => p.id === form.values.productId);
+  const isLoading = productsLoading || unitsLoading;
+  const canSubmit = form.values.productId && form.values.quantity && form.values.unitCode;
 
   return (
     <div className="max-w-2xl">
       <PageHeader
         title="Adjust Inventory"
-        subtitle="Quickly add or remove inventory without receiving or waste workflows"
+        subtitle="Quickly add or remove stock without receiving or waste workflows"
       />
 
-      <div className="card p-6">
-        <div className="space-y-4">
-          <div>
-            <label className="label">Product *</label>
-            <select
-              className="input w-full"
-              value={form.productId}
-              onChange={(e) => {
-                const product = products?.find((p) => p.id === e.target.value);
-                setForm({
-                  ...form,
-                  productId: e.target.value,
-                  unitCode: product?.inventoryUnitCode || "",
-                });
-              }}
-            >
-              <option value="">Select product…</option>
-              {products?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      {isLoading ? (
+        <SkeletonCard count={3} />
+      ) : (
+        <form onSubmit={onSubmit} className="card space-y-4 p-6">
+          <SelectInput
+            label="Product"
+            required
+            value={form.values.productId}
+            onChange={(e) => {
+              const product = products?.find((p) => p.id === e.target.value);
+              form.set("productId", e.target.value);
+              if (product) {
+                form.set("unitCode", product.inventoryUnitCode);
+              }
+            }}
+            options={(products || []).map((p) => ({ value: p.id, label: p.name }))}
+            placeholder="Select product…"
+            error={form.errors.productId}
+          />
 
           {selectedProduct && (
-            <div className="rounded-lg bg-slate-50 p-3 text-sm">
-              <p className="text-slate-600">
-                <span className="font-medium">Current quantity:</span> {selectedProduct.currentQuantity}{" "}
-                {selectedProduct.inventoryUnitCode}
-              </p>
+            <div className="flex items-center gap-3 rounded-lg bg-blue-50 p-3">
+              <span className="text-2xl">📦</span>
+              <div>
+                <p className="text-sm font-medium text-blue-900">Current quantity</p>
+                <p className="text-lg font-bold text-blue-700">
+                  {selectedProduct.currentQuantity} {selectedProduct.inventoryUnitCode}
+                </p>
+              </div>
             </div>
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="label">Quantity *</label>
-              <input
-                className="input w-full"
-                type="number"
-                step="0.01"
-                placeholder="e.g., 10 or -5"
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-              />
-              <p className="mt-1 text-xs text-slate-500">Positive to add, negative to remove</p>
-            </div>
+            <NumberInput
+              label="Quantity"
+              required
+              step="0.01"
+              placeholder="e.g., 10 or -5"
+              hint="Positive to add, negative to remove"
+              value={form.values.quantity}
+              onChange={(e) => form.set("quantity", e.target.value)}
+              error={form.errors.quantity}
+            />
 
-            <div>
-              <label className="label">Unit *</label>
-              <select
-                className="input w-full"
-                value={form.unitCode}
-                onChange={(e) => setForm({ ...form, unitCode: e.target.value })}
-              >
-                <option value="">Select unit…</option>
-                {units?.map((u) => (
-                  <option key={u.code} value={u.code}>
-                    {u.name} ({u.code})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SelectInput
+              label="Unit"
+              required
+              value={form.values.unitCode}
+              onChange={(e) => form.set("unitCode", e.target.value)}
+              options={(units || []).map((u) => ({ value: u.code, label: `${u.name} (${u.code})` }))}
+              placeholder="Select unit…"
+              error={form.errors.unitCode}
+            />
 
-            <div>
-              <label className="label">Reason (optional)</label>
-              <input
-                className="input w-full"
-                placeholder="e.g., Inventory correction"
-                value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
-              />
-            </div>
+            <TextInput
+              label="Reason (optional)"
+              placeholder="e.g., Inventory correction"
+              value={form.values.reason}
+              onChange={(e) => form.set("reason", e.target.value)}
+            />
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <button
-              className="btn-primary"
-              disabled={!canSubmit || adjust.isPending}
-              onClick={() => adjust.mutate()}
-            >
-              {adjust.isPending ? "Adjusting…" : "Adjust Inventory"}
-            </button>
-            {adjust.isSuccess && <span className="self-center text-sm text-emerald-600">✅ Adjusted</span>}
-            {adjust.isError && (
-              <span className="self-center text-sm text-rose-600">{(adjust.error as any)?.message}</span>
-            )}
-          </div>
-        </div>
-      </div>
+          {adjust.isError && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {getErrorMessage(adjust.error)}
+            </div>
+          )}
+
+          {adjust.isSuccess && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+              ✅ Inventory adjusted successfully
+            </div>
+          )}
+
+          <button className="btn-primary" disabled={!canSubmit || adjust.isPending}>
+            {adjust.isPending ? "Adjusting…" : "Adjust Inventory"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }

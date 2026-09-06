@@ -1,41 +1,56 @@
-import { FormEvent, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api/client";
-import { Product, Unit, WasteRecord } from "../types";
-import { PageHeader, Table } from "../components/ui";
+import { FormEvent } from "react";
+import { Product, WasteRecord } from "../types";
+import { PageHeader, Table, EmptyState, Badge } from "../components/ui";
+import { SkeletonTable } from "../components/Skeleton";
+import { TextInput, SelectInput, NumberInput, TextArea } from "../components/FormInputs";
 import { dateStr, qty, toInputDate } from "../lib/format";
+import { WASTE_REASONS, getErrorMessage } from "../lib/constants";
+import { useForm } from "../hooks/useForm";
+import { useProducts, useUnits, useWasteRecords, useCreateWaste } from "../hooks/useApi";
 
-const REASONS = ["SPOILED", "DAMAGED", "DROPPED", "EXPIRED", "OVERPRODUCTION", "STAFF_MEAL", "OTHER"];
+const INITIAL_WASTE = {
+  productId: "",
+  quantity: "",
+  unitCode: "",
+  reason: "SPOILED",
+  wasteDate: toInputDate(new Date()),
+  notes: "",
+};
 
 export default function Waste() {
-  const qc = useQueryClient();
-  const { data: products } = useQuery<Product[]>({ queryKey: ["products"], queryFn: () => api.get("/products") });
-  const { data: units } = useQuery<Unit[]>({ queryKey: ["units"], queryFn: () => api.get("/units") });
-  const { data: records } = useQuery<WasteRecord[]>({ queryKey: ["waste"], queryFn: () => api.get("/inventory/waste") });
+  const { data: products, isLoading: productsLoading } = useProducts();
+  const { data: units, isLoading: unitsLoading } = useUnits();
+  const { data: records, isLoading: recordsLoading } = useWasteRecords();
 
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [unitCode, setUnitCode] = useState("");
-  const [reason, setReason] = useState("SPOILED");
-  const [wasteDate, setWasteDate] = useState(toInputDate(new Date()));
-  const [notes, setNotes] = useState("");
-
-  const submit = useMutation({
-    mutationFn: () =>
-      api.post("/inventory/waste", { productId, quantity: Number(quantity), unitCode, reason, wasteDate, notes: notes || undefined }),
+  const form = useForm(INITIAL_WASTE);
+  const submit = useCreateWaste({
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["waste"] });
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      setQuantity("");
-      setNotes("");
+      form.reset();
     },
   });
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    submit.mutate();
+    if (!form.values.productId) {
+      form.setError("productId", "Product is required");
+      return;
+    }
+    if (!form.values.quantity) {
+      form.setError("quantity", "Quantity is required");
+      return;
+    }
+    if (!form.values.unitCode) {
+      form.setError("unitCode", "Unit is required");
+      return;
+    }
+    submit.mutate({
+      ...form.values,
+      quantity: Number(form.values.quantity),
+      notes: form.values.notes || undefined,
+    });
   };
+
+  const isFormLoading = productsLoading || unitsLoading;
 
   return (
     <div>
@@ -43,90 +58,105 @@ export default function Waste() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <form className="card flex flex-col gap-4 p-5" onSubmit={onSubmit}>
-          <div>
-            <label className="label">Product</label>
-            <select className="input" required value={productId} onChange={(e) => setProductId(e.target.value)}>
-              <option value="">Select a product…</option>
-              {products?.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SelectInput
+            label="Product"
+            required
+            value={form.values.productId}
+            onChange={(e) => form.set("productId", e.target.value)}
+            options={(products || []).map((p) => ({ value: p.id, label: p.name }))}
+            placeholder="Select a product…"
+            error={form.errors.productId}
+            disabled={productsLoading}
+          />
+
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Quantity</label>
-              <input
-                type="number"
-                step="any"
-                min="0"
-                className="input"
-                required
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-              />
+            <NumberInput
+              label="Quantity"
+              required
+              step="0.01"
+              min="0"
+              value={form.values.quantity}
+              onChange={(e) => form.set("quantity", e.target.value)}
+              error={form.errors.quantity}
+              disabled={isFormLoading}
+            />
+
+            <SelectInput
+              label="Unit"
+              required
+              value={form.values.unitCode}
+              onChange={(e) => form.set("unitCode", e.target.value)}
+              options={(units || []).map((u) => ({ value: u.code, label: `${u.name} (${u.code})` }))}
+              placeholder="Select unit…"
+              error={form.errors.unitCode}
+              disabled={unitsLoading}
+            />
+          </div>
+
+          <SelectInput
+            label="Reason"
+            value={form.values.reason}
+            onChange={(e) => form.set("reason", e.target.value)}
+            options={WASTE_REASONS.map((r) => ({ value: r.value, label: r.label }))}
+          />
+
+          <TextInput
+            label="Date"
+            type="date"
+            value={form.values.wasteDate}
+            onChange={(e) => form.set("wasteDate", e.target.value)}
+          />
+
+          <TextArea
+            label="Notes (optional)"
+            placeholder="What happened?"
+            value={form.values.notes}
+            onChange={(e) => form.set("notes", e.target.value)}
+          />
+
+          {submit.isError && (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+              {getErrorMessage(submit.error)}
             </div>
-            <div>
-              <label className="label">Unit</label>
-              <select className="input" required value={unitCode} onChange={(e) => setUnitCode(e.target.value)}>
-                <option value="">Unit…</option>
-                {units?.map((u) => (
-                  <option key={u.code} value={u.code}>
-                    {u.code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="label">Reason</label>
-            <select className="input" value={reason} onChange={(e) => setReason(e.target.value)}>
-              {REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {r.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="label">Date</label>
-            <input type="date" className="input" value={wasteDate} onChange={(e) => setWasteDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Notes (optional)</label>
-            <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What happened?" />
-          </div>
-          {submit.isError && <div className="text-sm text-rose-600">{(submit.error as any)?.message}</div>}
-          <button className="btn-danger" disabled={submit.isPending}>
-            {submit.isPending ? "Saving…" : "Record waste"}
+          )}
+
+          <button className="btn-danger" disabled={submit.isPending || isFormLoading}>
+            {submit.isPending ? "Recording…" : "Record waste"}
           </button>
         </form>
 
         <div>
-          <h2 className="mb-2 text-lg font-bold">Recent waste</h2>
-          <Table>
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2">Qty</th>
-                <th className="px-3 py-2">Reason</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {records?.slice(0, 20).map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2 text-slate-500">{dateStr(r.wasteDate)}</td>
-                  <td className="px-3 py-2 font-medium">{r.product?.name}</td>
-                  <td className="px-3 py-2">
-                    {qty(r.quantity)} {r.unitCode}
-                  </td>
-                  <td className="px-3 py-2 text-slate-500">{r.reason.replace(/_/g, " ")}</td>
+          <h2 className="mb-3 text-lg font-bold">Recent waste</h2>
+          {recordsLoading ? (
+            <SkeletonTable rows={5} />
+          ) : records && records.length > 0 ? (
+            <Table>
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left">Product</th>
+                  <th className="px-3 py-2 text-left">Qty</th>
+                  <th className="px-3 py-2 text-left">Reason</th>
                 </tr>
-              ))}
-            </tbody>
-          </Table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {records.slice(0, 20).map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50">
+                    <td className="px-3 py-2 text-sm text-slate-600">{dateStr(r.wasteDate)}</td>
+                    <td className="px-3 py-2 font-medium">{r.product?.name}</td>
+                    <td className="px-3 py-2 text-sm">
+                      {qty(r.quantity)} {r.unitCode}
+                    </td>
+                    <td className="px-3 py-2 text-sm">
+                      <Badge tone="amber">{WASTE_REASONS.find((wr) => wr.value === r.reason)?.label || r.reason}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <EmptyState>No waste recorded yet</EmptyState>
+          )}
         </div>
       </div>
     </div>
