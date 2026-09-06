@@ -62,7 +62,13 @@ export default function Waste() {
             label="Product"
             required
             value={form.values.productId}
-            onChange={(e) => form.set("productId", e.target.value)}
+            onChange={(e) => {
+              const product = products?.find((p) => p.id === e.target.value);
+              form.set("productId", e.target.value);
+              if (product) {
+                form.set("unitCode", product.inventoryUnitCode);
+              }
+            }}
             options={(products || []).map((p) => ({ value: p.id, label: p.name }))}
             placeholder="Select a product…"
             error={form.errors.productId}
