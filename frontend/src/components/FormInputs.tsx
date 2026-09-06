@@ -23,12 +23,15 @@ export function FormField({ label, required, error, hint, children }: FormFieldP
 }
 
 interface TextInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
+  label?: string;
   error?: string;
   hint?: string;
 }
 
 export function TextInput({ label, error, hint, ...props }: TextInputProps) {
+  if (!label) {
+    return <input className={`input w-full ${error ? "border-rose-300" : ""}`} {...props} />;
+  }
   return (
     <FormField label={label} required={props.required} error={error} hint={hint}>
       <input className={`input w-full ${error ? "border-rose-300" : ""}`} {...props} />
@@ -37,7 +40,7 @@ export function TextInput({ label, error, hint, ...props }: TextInputProps) {
 }
 
 interface SelectInputProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label: string;
+  label?: string;
   error?: string;
   hint?: string;
   options: Array<{ value: string; label: string }>;
@@ -45,16 +48,24 @@ interface SelectInputProps extends React.SelectHTMLAttributes<HTMLSelectElement>
 }
 
 export function SelectInput({ label, error, hint, options, placeholder, ...props }: SelectInputProps) {
+  const selectEl = (
+    <select className={`input w-full ${error ? "border-rose-300" : ""}`} {...props}>
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+
+  if (!label) {
+    return selectEl;
+  }
+
   return (
     <FormField label={label} required={props.required} error={error} hint={hint}>
-      <select className={`input w-full ${error ? "border-rose-300" : ""}`} {...props}>
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      {selectEl}
     </FormField>
   );
 }
