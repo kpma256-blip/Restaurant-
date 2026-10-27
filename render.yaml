@@ -5,9 +5,10 @@
 
 databases:
   - name: restaurant-inventory-db
-    # Paid plan on purpose: Render deletes free databases 30 days after
-    # creation, which wipes all inventory data.
-    plan: basic-256mb
+    # Free plan for testing only: Render deletes free databases 30 days after
+    # creation, along with all their data. Switch to basic-256mb (~$6/month)
+    # before entering real inventory.
+    plan: free
     databaseName: restaurant_inventory
     user: restaurant_inventory
 
@@ -15,7 +16,7 @@ services:
   - type: web
     name: restaurant-inventory
     runtime: node
-    plan: starter
+    plan: free
     # --include=dev is required here: NODE_ENV=production (set below) makes
     # `npm install` skip devDependencies by default, but the build itself
     # needs vite/typescript (devDependencies) to compile the app.
@@ -35,6 +36,10 @@ services:
         value: production
       - key: CORS_ORIGIN
         value: "*"
+      # Loads the sample data on startup when the database is empty (the seed
+      # skips itself once data exists). Set to false to start from empty.
+      - key: SEED_SAMPLE_DATA
+        value: "true"
       # Toast credentials are entered later via the app's Toast Integration
       # page (Connect Toast), which stores them encrypted in the database —
       # they don't need to be set here. Only set these if you'd rather

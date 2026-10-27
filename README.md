@@ -89,20 +89,20 @@ web service + one managed Postgres database, wired together automatically.
 3. Click **Apply**. First build takes a few minutes (installs both
    `frontend` and `backend`, builds both, then `prisma migrate deploy`
    creates the schema on the new database automatically).
-4. Once it's live, run the seed script once against the production
-   database if you want the sample data as a starting point — or skip it
-   and start from empty by using the app's own screens (Receive,
-   Recipes, etc.) to enter your real products, recipes, and stock. To run
-   the seed remotely: copy the `DATABASE_URL` Render generated (Database →
-   Connect) into a local `backend/.env`, then `cd backend && npm run seed`.
+4. The sample data loads automatically on first start, because
+   `SEED_SAMPLE_DATA=true` runs the seed script before the server starts. The
+   seed skips itself once the database has data. To start from empty and enter
+   your real products, recipes, and stock instead, set `SEED_SAMPLE_DATA` to
+   `false` before the first deploy.
 5. Your app is now live at `https://<your-service-name>.onrender.com`.
 
-**Plans and cost.** `render.yaml` uses a paid Basic database (`basic-256mb`,
-about $6/month) and a Starter web service. Don't switch the database back to
-`free` for real data: Render **deletes free Postgres databases 30 days after
-creation** (after a 14-day grace period), along with all the inventory in them.
-A free web service also spins down after 15 minutes idle and takes 30-60
-seconds to wake up, which is annoying at a busy register.
+**Plans and cost.** `render.yaml` uses Render's free plans, which are fine
+for testing but not for real data:
+- The **free Postgres database is deleted 30 days after creation** (after a
+  14-day grace period), along with all the inventory in it. Change the
+  database to `basic-256mb` (about $6/month) before you rely on it.
+- The **free web service spins down after 15 minutes idle** and takes 30-60
+  seconds to wake up. A paid "Starter" instance stays warm.
 
 Prefer a different host (Railway, Fly.io, a VPS)? The same two artifacts —
 a Dockerized/`npm run build`-able Node service reading `DATABASE_URL`, and
