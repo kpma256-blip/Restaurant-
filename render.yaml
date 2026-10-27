@@ -5,7 +5,9 @@
 
 databases:
   - name: restaurant-inventory-db
-    plan: free
+    # Paid plan on purpose: Render deletes free databases 30 days after
+    # creation, which wipes all inventory data.
+    plan: basic-256mb
     databaseName: restaurant_inventory
     user: restaurant_inventory
 
@@ -13,7 +15,7 @@ services:
   - type: web
     name: restaurant-inventory
     runtime: node
-    plan: free
+    plan: starter
     # --include=dev is required here: NODE_ENV=production (set below) makes
     # `npm install` skip devDependencies by default, but the build itself
     # needs vite/typescript (devDependencies) to compile the app.

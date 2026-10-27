@@ -97,15 +97,12 @@ web service + one managed Postgres database, wired together automatically.
    Connect) into a local `backend/.env`, then `cd backend && npm run seed`.
 5. Your app is now live at `https://<your-service-name>.onrender.com`.
 
-**Before you rely on this for real restaurant data**, upgrade both the
-database and the web service off Render's free plan:
-- The **free Postgres database expires 30 days after creation** (a 14-day
-  grace period, then it's deleted) — fine for testing, not for your actual
-  inventory. Upgrade it to a paid plan in the Render dashboard before that
-  30 days is up.
-- The **free web service spins down after 15 minutes idle** and takes
-  30-60 seconds to wake back up on the next request — annoying at a busy
-  register. A paid "Starter" instance stays warm.
+**Plans and cost.** `render.yaml` uses a paid Basic database (`basic-256mb`,
+about $6/month) and a Starter web service. Don't switch the database back to
+`free` for real data: Render **deletes free Postgres databases 30 days after
+creation** (after a 14-day grace period), along with all the inventory in them.
+A free web service also spins down after 15 minutes idle and takes 30-60
+seconds to wake up, which is annoying at a busy register.
 
 Prefer a different host (Railway, Fly.io, a VPS)? The same two artifacts —
 a Dockerized/`npm run build`-able Node service reading `DATABASE_URL`, and
